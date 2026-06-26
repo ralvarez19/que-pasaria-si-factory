@@ -16,6 +16,8 @@
     "seed_bindings": [],
     "filename_node_id": "",
     "filename_input_name": "filename_prefix",
+    "switch_text_to_video_node_id": "",
+    "switch_text_to_video_input_name": "value",
     "output_node_id": "",
     "output_class_type": "",
     "static_overrides": []

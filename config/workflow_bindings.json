@@ -26,6 +26,8 @@
     ],
     "filename_node_id": "75",
     "filename_input_name": "filename_prefix",
+    "switch_text_to_video_node_id": "320:302",
+    "switch_text_to_video_input_name": "value",
     "output_node_id": "75",
     "output_class_type": "SaveVideo",
     "static_overrides": [

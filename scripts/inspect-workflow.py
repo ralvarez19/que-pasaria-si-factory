@@ -30,6 +30,8 @@ def build_binding_labels(bindings: dict[str, Any]) -> dict[tuple[str, str], str]
         for override in static_overrides:
             if isinstance(override, dict):
                 labels[(str(override.get("node_id", "")), str(override.get("input_name", "")))] = "static_override"
+    if video.get("switch_text_to_video_node_id") and video.get("switch_text_to_video_input_name"):
+        labels[(str(video["switch_text_to_video_node_id"]), str(video["switch_text_to_video_input_name"]))] = "switch_text_to_video"
     return labels
 
 

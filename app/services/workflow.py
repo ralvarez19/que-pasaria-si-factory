@@ -8,11 +8,17 @@ class WorkflowConfigurationError(RuntimeError):
     pass
 
 
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+IMAGE_INPUT_NAMES = {"image", "first_frame", "last_frame", "reference_image", "init_image", "start_image", "end_image"}
+IMAGE_CLASS_MARKERS = ("loadimage", "imagetovideo", "imgtovideo", "i2v", "ltxvimgtovideo")
+ID_LORA_MARKERS = ("id-lora", "id_lora", "identity", "faceid", "instantid", "ipadapterfaceid")
+
+
 def load_json_file(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise WorkflowConfigurationError(f"Falta el archivo requerido: {path}")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise WorkflowConfigurationError(f"El archivo JSON no es valido: {path}") from exc
 
@@ -54,6 +60,7 @@ def apply_video_bindings(
     if not isinstance(video, dict):
         raise WorkflowConfigurationError("config/workflow_bindings.json debe contener la seccion 'video'.")
     apply_static_overrides(result, video)
+    force_text_to_video_switch(result, video)
     duration_value = _duration_value(video, duration=duration, fps=fps)
     values = {
         "prompt": prompt,
@@ -77,6 +84,35 @@ def apply_video_bindings(
     return result
 
 
+def validate_t2v_workflow(workflow: dict[str, Any], bindings: dict[str, Any] | None = None) -> None:
+    report = inspect_workflow(workflow)
+    switch = get_text_to_video_switch(workflow, bindings)
+    problems: list[str] = []
+    has_image_reference = bool(report["hardcoded_images"] or report["image_nodes"] or report["first_last_frame_inputs"])
+    if has_image_reference:
+        if switch is None:
+            images = ", ".join(
+                f"{item['node_id']}.{item['input_name']}={item['value']}" for item in report["hardcoded_images"]
+            )
+            nodes = ", ".join(f"{item['node_id']} ({item['class_type']})" for item in report["image_nodes"])
+            details = "; ".join(part for part in [f"imagenes hardcodeadas: {images}" if images else "", f"nodos de imagen: {nodes}" if nodes else ""] if part)
+            problems.append(f"contiene LoadImage/referencias de imagen sin un switch valido de texto a video ({details})")
+        elif switch["value"] is not True:
+            problems.append(
+                f"el workflow esta en modo Imagen a Video: {switch['node_id']}.{switch['input_name']}="
+                f"{switch['value']!r}. Cambia 'Switch to Text to Video?' a true."
+            )
+    if report["id_lora_nodes"]:
+        nodes = ", ".join(f"{item['node_id']} ({item['class_type']}: {item['value']})" for item in report["id_lora_nodes"])
+        problems.append(f"parece usar ID LoRA o identidad/referencia: {nodes}")
+    if problems:
+        raise WorkflowConfigurationError(
+            "El provider t2v requiere que el workflow ejecute la rama de texto a video; "
+            + "; ".join(problems)
+            + ". No se enviara el prompt a ComfyUI hasta corregirlo."
+        )
+
+
 def validate_video_bindings(workflow: dict[str, Any], bindings: dict[str, Any]) -> None:
     video = bindings.get("video")
     if not isinstance(video, dict):
@@ -90,6 +126,12 @@ def validate_video_bindings(workflow: dict[str, Any], bindings: dict[str, Any]) 
     required = ("prompt", "width", "height", "duration", "fps", "filename")
     for key in required:
         _assert_workflow_input_exists(workflow, str(video.get(f"{key}_node_id", "")), str(video.get(f"{key}_input_name", "")))
+    if video.get("switch_text_to_video_node_id") or video.get("switch_text_to_video_input_name"):
+        _assert_workflow_input_exists(
+            workflow,
+            str(video.get("switch_text_to_video_node_id", "")),
+            str(video.get("switch_text_to_video_input_name", "")),
+        )
     seed_bindings = video.get("seed_bindings")
     if isinstance(seed_bindings, list) and seed_bindings:
         for seed_binding in seed_bindings:
@@ -138,3 +180,91 @@ def apply_static_overrides(workflow: dict[str, Any], video_bindings: dict[str, A
             str(override.get("input_name", "")),
             override.get("value"),
         )
+
+
+def force_text_to_video_switch(workflow: dict[str, Any], video_bindings: dict[str, Any]) -> None:
+    node_id = str(video_bindings.get("switch_text_to_video_node_id", ""))
+    input_name = str(video_bindings.get("switch_text_to_video_input_name", ""))
+    if node_id and input_name:
+        set_workflow_input(workflow, node_id, input_name, True)
+
+
+def get_text_to_video_switch(workflow: dict[str, Any], bindings: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    video = bindings.get("video", {}) if isinstance(bindings, dict) else {}
+    candidate_node_id = str(video.get("switch_text_to_video_node_id", "") or "")
+    candidate_input = str(video.get("switch_text_to_video_input_name", "") or "")
+    candidates: list[tuple[str, str]] = []
+    if candidate_node_id and candidate_input:
+        candidates.append((candidate_node_id, candidate_input))
+    candidates.append(("320:302", "value"))
+    for node_id, input_name in candidates:
+        node = workflow.get(node_id)
+        if not isinstance(node, dict):
+            continue
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict) or input_name not in inputs:
+            continue
+        meta = node.get("_meta", {})
+        title = str(meta.get("title", "")) if isinstance(meta, dict) else ""
+        if node.get("class_type") == "PrimitiveBoolean" and title == "Switch to Text to Video?":
+            return {"node_id": node_id, "input_name": input_name, "value": inputs[input_name], "title": title}
+    return None
+
+
+def inspect_workflow(workflow: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    report: dict[str, list[dict[str, Any]]] = {
+        "text_nodes": [],
+        "video_nodes": [],
+        "image_nodes": [],
+        "output_nodes": [],
+        "hardcoded_images": [],
+        "first_last_frame_inputs": [],
+        "id_lora_nodes": [],
+    }
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict):
+            continue
+        class_type = str(node.get("class_type", ""))
+        inputs = node.get("inputs", {})
+        if not isinstance(inputs, dict):
+            inputs = {}
+        class_lower = class_type.lower()
+        meta = node.get("_meta", {})
+        title = str(meta.get("title", "")) if isinstance(meta, dict) else ""
+        entry = {"node_id": node_id, "class_type": class_type, "title": title}
+        if "text" in class_lower or "string" in class_lower or "prompt" in class_lower or any("text" in str(key).lower() for key in inputs):
+            report["text_nodes"].append(entry)
+        if "video" in class_lower or any("video" in str(key).lower() or "latent_image" == str(key).lower() for key in inputs):
+            report["video_nodes"].append(entry)
+        if any(marker in class_lower for marker in IMAGE_CLASS_MARKERS) or any(_is_image_input_name(str(key)) for key in inputs):
+            report["image_nodes"].append(entry)
+        if class_lower.startswith("save") or "savevideo" in class_lower or "preview" in class_lower:
+            report["output_nodes"].append(entry)
+        for input_name, value in inputs.items():
+            input_lower = str(input_name).lower()
+            if input_lower in {"first_frame", "last_frame", "reference_image"}:
+                report["first_last_frame_inputs"].append({**entry, "input_name": input_name, "value": value})
+            if _looks_like_image_file(value):
+                report["hardcoded_images"].append({**entry, "input_name": input_name, "value": value})
+            if _looks_like_id_lora(input_name, value):
+                report["id_lora_nodes"].append({**entry, "input_name": input_name, "value": value})
+        if any(marker in class_lower for marker in ID_LORA_MARKERS):
+            report["id_lora_nodes"].append({**entry, "input_name": "class_type", "value": class_type})
+    return report
+
+
+def _is_image_input_name(input_name: str) -> bool:
+    lower = input_name.lower()
+    return lower in IMAGE_INPUT_NAMES or lower.endswith("_image") or lower.endswith(".image")
+
+
+def _looks_like_image_file(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    lower = value.lower()
+    return lower.startswith("photo_") or lower.endswith(IMAGE_EXTENSIONS)
+
+
+def _looks_like_id_lora(input_name: Any, value: Any) -> bool:
+    combined = f"{input_name} {value}".lower()
+    return any(marker in combined for marker in ID_LORA_MARKERS)

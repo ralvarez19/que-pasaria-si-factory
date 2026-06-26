@@ -6,7 +6,14 @@ from typing import Any
 import httpx
 
 from app.core.config import Settings
-from app.services.workflow import WorkflowConfigurationError, apply_video_bindings, load_json_file, load_workflow_bindings, validate_video_bindings
+from app.services.workflow import (
+    WorkflowConfigurationError,
+    apply_video_bindings,
+    load_json_file,
+    load_workflow_bindings,
+    validate_t2v_workflow,
+    validate_video_bindings,
+)
 
 
 class ComfyUIError(RuntimeError):
@@ -66,6 +73,7 @@ class ComfyUIClient:
             workflow = load_json_file(workflow_path)
             bindings = load_workflow_bindings(bindings_path)
             validate_video_bindings(workflow, bindings)
+            validate_t2v_workflow(workflow, bindings)
             prepared = apply_video_bindings(
                 workflow,
                 bindings,
