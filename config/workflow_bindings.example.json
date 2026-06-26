@@ -1,0 +1,24 @@
+﻿{
+  "video": {
+    "prompt_node_id": "",
+    "prompt_input_name": "text",
+    "width_node_id": "",
+    "width_input_name": "width",
+    "height_node_id": "",
+    "height_input_name": "height",
+    "duration_node_id": "",
+    "duration_input_name": "duration",
+    "fps_node_id": "",
+    "fps_input_name": "fps",
+    "seed_node_id": "",
+    "seed_input_name": "seed",
+    "filename_node_id": "",
+    "filename_input_name": "filename_prefix"
+  },
+  "tts": {
+    "text_node_id": "",
+    "text_input_name": "text",
+    "filename_node_id": "",
+    "filename_input_name": "filename_prefix"
+  }
+}
