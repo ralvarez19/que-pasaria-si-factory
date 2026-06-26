@@ -1,0 +1,46 @@
+{
+  "video": {
+    "prompt_node_id": "320:319",
+    "prompt_input_name": "value",
+    "width_node_id": "320:312",
+    "width_input_name": "value",
+    "height_node_id": "320:299",
+    "height_input_name": "value",
+    "duration_node_id": "320:301",
+    "duration_input_name": "value",
+    "duration_unit": "seconds",
+    "duration_note": "El workflow calcula frames en 320:323 con expression 'a * b + 1' usando duration_seconds 320:301 y fps 320:300.",
+    "fps_node_id": "320:300",
+    "fps_input_name": "value",
+    "seed_node_id": "320:277",
+    "seed_input_name": "noise_seed",
+    "seed_bindings": [
+      {
+        "node_id": "320:276",
+        "input_name": "noise_seed"
+      },
+      {
+        "node_id": "320:277",
+        "input_name": "noise_seed"
+      }
+    ],
+    "filename_node_id": "75",
+    "filename_input_name": "filename_prefix",
+    "output_node_id": "75",
+    "output_class_type": "SaveVideo",
+    "static_overrides": [
+      {
+        "node_id": "320:324",
+        "input_name": "lora_name",
+        "value": "ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+        "reason": "El workflow exportado referencia gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors, que ComfyUI rechazo porque no esta instalado."
+      }
+    ]
+  },
+  "tts": {
+    "text_node_id": "",
+    "text_input_name": "text",
+    "filename_node_id": "",
+    "filename_input_name": "filename_prefix"
+  }
+}

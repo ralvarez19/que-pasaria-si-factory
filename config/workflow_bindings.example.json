@@ -8,12 +8,17 @@
     "height_input_name": "height",
     "duration_node_id": "",
     "duration_input_name": "duration",
+    "duration_unit": "seconds",
     "fps_node_id": "",
     "fps_input_name": "fps",
     "seed_node_id": "",
     "seed_input_name": "seed",
+    "seed_bindings": [],
     "filename_node_id": "",
-    "filename_input_name": "filename_prefix"
+    "filename_input_name": "filename_prefix",
+    "output_node_id": "",
+    "output_class_type": "",
+    "static_overrides": []
   },
   "tts": {
     "text_node_id": "",

@@ -6,6 +6,7 @@ logs/*
 data/jobs/*
 data/outputs/*
 data/temp/*
+data/*.db
 !logs/.gitkeep
 !data/jobs/.gitkeep
 !data/outputs/.gitkeep

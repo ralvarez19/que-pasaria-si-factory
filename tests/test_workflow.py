@@ -1,0 +1,178 @@
+from app.services.workflow import WorkflowConfigurationError, apply_video_bindings, validate_video_bindings
+
+
+def test_apply_video_bindings_updates_structured_inputs() -> None:
+    workflow = {
+        "1": {"inputs": {"text": "old"}},
+        "2": {"inputs": {"width": 1}},
+        "3": {"inputs": {"height": 1}},
+        "4": {"inputs": {"duration": 1}},
+        "5": {"inputs": {"fps": 1}},
+        "6": {"inputs": {"seed": 1}},
+        "7": {"inputs": {"filename_prefix": "old"}},
+    }
+    bindings = {
+        "video": {
+            "prompt_node_id": "1",
+            "prompt_input_name": "text",
+            "width_node_id": "2",
+            "width_input_name": "width",
+            "height_node_id": "3",
+            "height_input_name": "height",
+            "duration_node_id": "4",
+            "duration_input_name": "duration",
+            "fps_node_id": "5",
+            "fps_input_name": "fps",
+            "seed_node_id": "6",
+            "seed_input_name": "seed",
+            "filename_node_id": "7",
+            "filename_input_name": "filename_prefix",
+        }
+    }
+
+    updated = apply_video_bindings(
+        workflow,
+        bindings,
+        prompt="new",
+        width=1280,
+        height=720,
+        duration=4,
+        fps=25,
+        seed=99,
+        filename_prefix="clip",
+    )
+
+    assert updated["1"]["inputs"]["text"] == "new"
+    assert updated["2"]["inputs"]["width"] == 1280
+    assert workflow["1"]["inputs"]["text"] == "old"
+
+
+def test_apply_video_bindings_applies_static_overrides() -> None:
+    workflow = {
+        "1": {"inputs": {"text": "old"}},
+        "2": {"inputs": {"width": 1}},
+        "3": {"inputs": {"height": 1}},
+        "4": {"inputs": {"duration": 1}},
+        "5": {"inputs": {"fps": 1}},
+        "6": {"inputs": {"seed": 1}},
+        "7": {"inputs": {"filename_prefix": "old"}},
+        "8": {"inputs": {"lora_name": "missing.safetensors"}},
+    }
+    bindings = {
+        "video": {
+            "prompt_node_id": "1",
+            "prompt_input_name": "text",
+            "width_node_id": "2",
+            "width_input_name": "width",
+            "height_node_id": "3",
+            "height_input_name": "height",
+            "duration_node_id": "4",
+            "duration_input_name": "duration",
+            "fps_node_id": "5",
+            "fps_input_name": "fps",
+            "seed_node_id": "6",
+            "seed_input_name": "seed",
+            "filename_node_id": "7",
+            "filename_input_name": "filename_prefix",
+            "static_overrides": [{"node_id": "8", "input_name": "lora_name", "value": "available.safetensors"}],
+        }
+    }
+
+    updated = apply_video_bindings(workflow, bindings, prompt="new", width=1, height=1, duration=1, fps=1, seed=1, filename_prefix="x")
+
+    assert updated["8"]["inputs"]["lora_name"] == "available.safetensors"
+
+
+def test_apply_video_bindings_updates_multiple_seed_inputs() -> None:
+    workflow = {
+        "1": {"inputs": {"text": "old"}},
+        "2": {"inputs": {"width": 1}},
+        "3": {"inputs": {"height": 1}},
+        "4": {"inputs": {"length": 1}},
+        "5": {"inputs": {"fps": 1}},
+        "6": {"inputs": {"noise_seed": 1}},
+        "7": {"inputs": {"noise_seed": 1}},
+        "8": {"inputs": {"filename_prefix": "old"}},
+    }
+    bindings = {
+        "video": {
+            "prompt_node_id": "1",
+            "prompt_input_name": "text",
+            "width_node_id": "2",
+            "width_input_name": "width",
+            "height_node_id": "3",
+            "height_input_name": "height",
+            "duration_node_id": "4",
+            "duration_input_name": "length",
+            "duration_unit": "frames",
+            "duration_add_terminal_frame": True,
+            "fps_node_id": "5",
+            "fps_input_name": "fps",
+            "seed_node_id": "7",
+            "seed_input_name": "noise_seed",
+            "seed_bindings": [
+                {"node_id": "6", "input_name": "noise_seed"},
+                {"node_id": "7", "input_name": "noise_seed"},
+            ],
+            "filename_node_id": "8",
+            "filename_input_name": "filename_prefix",
+        }
+    }
+
+    updated = apply_video_bindings(
+        workflow,
+        bindings,
+        prompt="new",
+        width=1280,
+        height=720,
+        duration=4,
+        fps=25,
+        seed=100,
+        filename_prefix="clip",
+    )
+
+    assert updated["4"]["inputs"]["length"] == 101
+    assert updated["6"]["inputs"]["noise_seed"] == 100
+    assert updated["7"]["inputs"]["noise_seed"] == 101
+
+
+def test_validate_video_bindings_checks_real_nodes() -> None:
+    workflow = {
+        "1": {"inputs": {"text": "old"}},
+        "2": {"inputs": {"width": 1}},
+        "3": {"inputs": {"height": 1}},
+        "4": {"inputs": {"duration": 1}},
+        "5": {"inputs": {"fps": 1}},
+        "6": {"inputs": {"seed": 1}},
+        "7": {"inputs": {"filename_prefix": "old"}},
+    }
+    bindings = {
+        "video": {
+            "prompt_node_id": "1",
+            "prompt_input_name": "text",
+            "width_node_id": "2",
+            "width_input_name": "width",
+            "height_node_id": "3",
+            "height_input_name": "height",
+            "duration_node_id": "4",
+            "duration_input_name": "duration",
+            "fps_node_id": "5",
+            "fps_input_name": "fps",
+            "seed_node_id": "6",
+            "seed_input_name": "seed",
+            "filename_node_id": "7",
+            "filename_input_name": "filename_prefix",
+        }
+    }
+
+    validate_video_bindings(workflow, bindings)
+
+
+def test_apply_video_bindings_fails_on_missing_node() -> None:
+    bindings = {"video": {"prompt_node_id": "missing", "prompt_input_name": "text"}}
+    try:
+        apply_video_bindings({}, bindings, prompt="x", width=1, height=1, duration=1, fps=1, seed=1, filename_prefix="x")
+    except WorkflowConfigurationError as exc:
+        assert "missing" in str(exc)
+    else:
+        raise AssertionError("Expected WorkflowConfigurationError")
