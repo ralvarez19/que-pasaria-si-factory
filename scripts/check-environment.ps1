@@ -37,8 +37,8 @@ Test-Ok "Bindings activos" (Test-Path "config\workflow_bindings.json") "config\w
 Test-Ok "Bindings ejemplo" (Test-Path "config\workflow_bindings.example.json") "config\workflow_bindings.example.json"
 Test-Ok "Base de datos" (Test-Path "data\content_factory.db") "Se crea automaticamente al iniciar la API si no existe"
 
-New-Item -ItemType Directory -Force logs, data\jobs, data\outputs, data\temp, workflows\video, workflows\audio | Out-Null
-Test-Ok "Carpetas de salida" $true "logs, data\jobs, data\outputs, data\temp"
+New-Item -ItemType Directory -Force logs, data\jobs, data\outputs, data\outputs\latest, data\outputs\archive, data\temp, workflows\video, workflows\audio | Out-Null
+Test-Ok "Carpetas de salida" $true "logs, data\jobs, data\outputs\latest, data\outputs\archive, data\temp"
 
 $envValues = @{}
 if (Test-Path ".env") {

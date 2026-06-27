@@ -126,6 +126,15 @@ También puedes reintentar manualmente:
 
 ```powershell
 Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/jobs/{job_id}/send-telegram
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/jobs/latest/send-telegram
+```
+
+El envío automático usa el MP4 real del job en `data/jobs/{job_id}/final/final.mp4`. Para reenviar, abrir o inspeccionar el último render:
+
+```powershell
+scripts\send-latest-telegram.ps1
+scripts\open-latest-video.ps1
+scripts\show-last-job.ps1
 ```
 
 Guía completa: `docs/telegram.md`.
@@ -146,6 +155,31 @@ $body = @{
 
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/jobs -Body $body -ContentType "application/json"
 ```
+
+También puedes pasar un guion manual:
+
+```powershell
+$body = @{
+  topic = "¿Qué pasaría si la Luna desapareciera?"
+  duration_seconds = 60
+  scene_duration_seconds = 4
+  script_path = "data/input/manual_script.json"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/jobs -Body $body -ContentType "application/json"
+```
+
+Si existe `data/input/manual_script.json`, la API lo usa automáticamente. Si el archivo indicado no existe, vuelve al planner automático.
+
+## Reglas De Guion
+
+Para escenas de 4 segundos, la API valida y corrige el plan antes de generar:
+
+- título normalizado como `¿Qué pasaría si ...?`;
+- narraciones de una sola idea, máximo 65 caracteres;
+- eliminación de `Cada consecuencia abre la puerta a la siguiente`;
+- `subtitle` exactamente igual a `narration`;
+- limpieza previa al TTS de saltos de línea, puntos internos, `;` y `:`.
 
 Consultar progreso:
 
@@ -173,6 +207,11 @@ Cada trabajo crea:
 `data/jobs/{job_id}/temp/`
 `data/jobs/{job_id}/final/final.mp4`
 `data/jobs/{job_id}/logs/job.log`
+
+Después de ensamblar correctamente el MP4, también se copia a:
+
+`data/outputs/latest/final.mp4`
+`data/outputs/archive/YYYYMMDD_HHmmss_{topic_slug}_{job_id_short}.mp4`
 
 ## Errores Frecuentes
 

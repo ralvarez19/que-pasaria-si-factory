@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import Settings
-from app.providers.tts import ComfyUITTSProvider, SilentTTSProvider, sanitize_tts_text
+from app.providers.tts import ComfyUITTSProvider, SilentTTSProvider, clean_narration_for_tts, sanitize_tts_text
 from app.services.comfyui import ComfyUIClient, ComfyUIError
 from app.services.workflow import WorkflowConfigurationError
 
@@ -133,3 +133,13 @@ def test_sanitize_tts_text_truncates_long_text() -> None:
 
     assert len(sanitized) <= 180
     assert "Mañana" in sanitized
+
+
+def test_clean_narration_for_tts_limits_short_scenes_without_cutting_words() -> None:
+    text = "El océano cambiaría durante años. La humanidad tendría nuevas dificultades."
+
+    cleaned = clean_narration_for_tts(text, max_chars=65)
+
+    assert len(cleaned) <= 65
+    assert cleaned == "El océano cambiaría durante años, La humanidad tendría nuevas"
+    assert "ñ" in cleaned

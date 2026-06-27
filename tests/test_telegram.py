@@ -135,9 +135,11 @@ async def test_telegram_http_error_falls_back_to_document(monkeypatch: pytest.Mo
 
 
 def test_manual_send_telegram_endpoint(tmp_path: Path) -> None:
-    video_path = tmp_path / "final.mp4"
-    video_path.write_bytes(b"fake video")
     job_id = "telegram-endpoint-job"
+    jobs_dir = tmp_path / "jobs"
+    video_path = jobs_dir / job_id / "final" / "final.mp4"
+    video_path.parent.mkdir(parents=True)
+    video_path.write_bytes(b"fake video")
 
     with TestClient(app) as client:
         with SessionLocal() as db:
@@ -166,12 +168,17 @@ def test_manual_send_telegram_endpoint(tmp_path: Path) -> None:
 
         async def fake_send_telegram_for_job(db, requested_job_id: str):
             assert requested_job_id == job_id
+            raise AssertionError("signature must include video_path_override")
+
+        async def fake_send_telegram_for_job_with_override(db, requested_job_id: str, job_logger=None, video_path_override=None):
+            assert requested_job_id == job_id
+            assert video_path_override == video_path
             return TelegramSendResult(ok=True, status="sent", method="sendVideo", video_path=str(video_path), telegram_message_id=99)
 
         fake_worker = SimpleNamespace(
-            settings=telegram_settings(jobs_dir=tmp_path / "jobs", log_file=tmp_path / "app.log"),
+            settings=telegram_settings(jobs_dir=jobs_dir, log_file=tmp_path / "app.log"),
             telegram_notifier=TelegramNotifier(telegram_settings()),
-            send_telegram_for_job=fake_send_telegram_for_job,
+            send_telegram_for_job=fake_send_telegram_for_job_with_override,
         )
         app.state.worker = fake_worker
         try:

@@ -33,9 +33,11 @@ def write_job_snapshot(settings: Settings, job: Job) -> None:
         "height": job.height,
         "fps": job.fps,
         "final_video_path": job.final_video_path,
+        "script_path": job.script_path,
         "telegram_status": job.telegram_status,
         "telegram_error": job.telegram_error,
         "telegram_sent_at": job.telegram_sent_at.isoformat() if job.telegram_sent_at else None,
+        "telegram_message_id": job.telegram_message_id,
     }
     (root / "job.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 

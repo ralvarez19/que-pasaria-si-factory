@@ -56,8 +56,9 @@ class ComfyUITTSProvider(TTSProvider):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.monotonic()
         prefix = filename_prefix or output_path.with_suffix("").name
+        max_chars = 65 if duration_seconds <= 4 else 180
         prompt_id, history = await self.client.generate_tts_audio(
-            text=sanitize_tts_text(text),
+            text=clean_narration_for_tts(text, max_chars=max_chars),
             filename_prefix=prefix,
             seed=random.randint(1, 2_147_483_647),
         )
@@ -74,16 +75,20 @@ def get_tts_provider(settings: Settings) -> TTSProvider:
     return SilentTTSProvider(settings)
 
 
-def sanitize_tts_text(text: str, max_chars: int = 180) -> str:
+def clean_narration_for_tts(text: str, max_chars: int = 65) -> str:
     cleaned = text.replace("\r", " ").replace("\n", " ")
     cleaned = cleaned.replace("...", ",")
-    cleaned = cleaned.replace(".", ",")
     cleaned = cleaned.replace(";", ",").replace(":", ",")
+    cleaned = re.sub(r"(?<!\.)\.(?!\.)", ",", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     if len(cleaned) <= max_chars:
         return cleaned
     truncated = cleaned[:max_chars].rstrip()
     last_break = max(truncated.rfind(","), truncated.rfind(" "))
-    if last_break >= 80:
+    if last_break >= 20:
         truncated = truncated[:last_break].rstrip(" ,")
     return truncated
+
+
+def sanitize_tts_text(text: str, max_chars: int = 180) -> str:
+    return clean_narration_for_tts(text, max_chars=max_chars)

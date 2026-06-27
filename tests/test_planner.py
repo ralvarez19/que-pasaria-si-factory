@@ -14,7 +14,9 @@ async def test_mock_planner_generates_requested_scene_count() -> None:
     assert plan.scenes[-1].scene_number == 15
     assert plan.scenes[0].duration_seconds == 4
     assert "what if" in plan.scenes[0].visual_prompt.lower()
-    assert "Hoy exploramos" in plan.scenes[0].narration
+    assert plan.scenes[0].narration == "¿Qué pasaría si la Luna desapareciera?"
+    assert all(scene.subtitle == scene.narration for scene in plan.scenes)
+    assert all(len(scene.narration) <= 65 for scene in plan.scenes)
 
 
 @pytest.mark.asyncio

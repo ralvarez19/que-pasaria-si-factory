@@ -38,6 +38,8 @@ def _ensure_sqlite_job_columns() -> None:
         statements.append("ALTER TABLE jobs ADD COLUMN telegram_error TEXT")
     if "telegram_sent_at" not in existing:
         statements.append("ALTER TABLE jobs ADD COLUMN telegram_sent_at DATETIME")
+    if "telegram_message_id" not in existing:
+        statements.append("ALTER TABLE jobs ADD COLUMN telegram_message_id INTEGER")
     if not statements:
         return
     with engine.begin() as connection:

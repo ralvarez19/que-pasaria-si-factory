@@ -15,6 +15,7 @@ class JobCreate(BaseModel):
     width: int = Field(default=1280, ge=256, le=4096)
     height: int = Field(default=720, ge=256, le=4096)
     fps: int = Field(default=25, ge=1, le=120)
+    script_path: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode="after")
     def validate_duration(self) -> "JobCreate":
@@ -69,9 +70,11 @@ class JobResponse(BaseModel):
     height: int
     fps: int
     final_video_path: str | None = None
+    script_path: str | None = None
     telegram_status: str | None = None
     telegram_error: str | None = None
     telegram_sent_at: datetime | None = None
+    telegram_message_id: int | None = None
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None = None

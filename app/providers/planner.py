@@ -35,21 +35,21 @@ class MockPlannerProvider(PlannerProvider):
     async def create_plan(self, request: JobCreate) -> ContentPlan:
         title, topic_clean = normalize_spanish_what_if_topic(request.topic)
         beats = [
-            ("cosmic establishing shot, cinematic documentary style", "Imagina que todo cambia en silencio."),
-            ("people looking at the night sky, realistic science documentary", "La primera señal sería visual: el cielo perdería su punto más familiar."),
-            ("ocean tides becoming strangely calm, wide aerial view", "Sin la Luna, las mareas se debilitarían de forma drástica."),
-            ("coastal ecosystems exposed under soft daylight, natural history footage", "Millones de especies costeras tendrían que adaptarse o desaparecer."),
-            ("Earth rotating in space with subtle axis wobble, scientific visualization", "Con el tiempo, la inclinación de la Tierra sería menos estable."),
-            ("extreme seasons over continents, cinematic timelapse", "Eso podría volver las estaciones mucho más extremas."),
-            ("ancient humans around a fire under a dark moonless sky", "También cambiaría nuestra historia cultural y nuestra forma de medir el tiempo."),
-            ("nocturnal animals moving in darker landscapes, nature documentary", "Las noches serían más oscuras y muchos animales cambiarían su comportamiento."),
-            ("satellites and observatories tracking Earth, clean technical visualization", "La tecnología seguiría funcionando, pero los modelos orbitales se ajustarían."),
-            ("storm systems over oceans, detailed weather visualization", "El clima no colapsaría de golpe, aunque algunos patrones cambiarían lentamente."),
-            ("astronaut footprint fading on a gray lunar surface, emotional cinematic shot", "Perderíamos un archivo físico de nuestra exploración espacial."),
-            ("children watching a black moonless sky from a rooftop", "La humanidad tendría que acostumbrarse a un cielo menos poético."),
-            ("scientists in a control room analyzing Earth data, realistic documentary", "Los científicos medirían cada efecto durante décadas."),
-            ("Earth alone against deep space, hopeful cinematic framing", "Aun así, la vida no terminaría de inmediato."),
-            ("sunrise over Earth with documentary realism, dramatic but hopeful", "La pregunta real sería cuánto podríamos adaptarnos."),
+            ("cosmic establishing shot, cinematic documentary style", title),
+            ("people looking at the night sky, realistic science documentary", "El cielo perdería su punto más familiar"),
+            ("ocean tides becoming strangely calm, wide aerial view", "Las mareas perderían fuerza rápidamente"),
+            ("coastal ecosystems exposed under soft daylight, natural history footage", "La vida costera cambiaría para siempre"),
+            ("Earth rotating in space with subtle axis wobble, scientific visualization", "La Tierra oscilaría con menos estabilidad"),
+            ("extreme seasons over continents, cinematic timelapse", "Las estaciones podrían volverse más extremas"),
+            ("ancient humans around a fire under a dark moonless sky", "Nuestros calendarios perderían una guía antigua"),
+            ("nocturnal animals moving in darker landscapes, nature documentary", "Muchas especies cambiarían sus hábitos nocturnos"),
+            ("satellites and observatories tracking Earth, clean technical visualization", "Los modelos orbitales deberían recalcularse"),
+            ("storm systems over oceans, detailed weather visualization", "El clima cambiaría lentamente"),
+            ("astronaut footprint fading on a gray lunar surface, emotional cinematic shot", "Perderíamos huellas de nuestra exploración"),
+            ("children watching a black moonless sky from a rooftop", "La noche se sentiría más vacía"),
+            ("scientists in a control room analyzing Earth data, realistic documentary", "Los científicos medirían cambios durante décadas"),
+            ("Earth alone against deep space, hopeful cinematic framing", "La vida no terminaría de inmediato"),
+            ("sunrise over Earth with documentary realism, dramatic but hopeful", "¿Podríamos adaptarnos a ese mundo?"),
         ]
         scenes: list[PlannedScene] = []
         count = request.scene_count
@@ -64,8 +64,8 @@ class MockPlannerProvider(PlannerProvider):
                         f"{visual}, topic: what if {topic_clean}, 16:9, 1280x720, "
                         "high detail, realistic, coherent short video scene, no text overlays"
                     ),
-                    narration=f"{narration_tail} {self._transition(scene_number, count, topic_clean)}",
-                    subtitle=f"{narration_tail} {self._transition(scene_number, count, topic_clean)}",
+                    narration=narration_tail,
+                    subtitle=narration_tail,
                 )
             )
         return ContentPlan(
@@ -73,15 +73,6 @@ class MockPlannerProvider(PlannerProvider):
             hook=f"Un viaje de {request.duration_seconds} segundos para entender {topic_clean}.",
             scenes=scenes,
         )
-
-    @staticmethod
-    def _transition(scene_number: int, total: int, topic: str) -> str:
-        if scene_number == 1:
-            return f"Hoy exploramos: {topic}."
-        if scene_number == total:
-            return "Y ese final nos deja una idea inquietante: nuestro mundo depende de equilibrios invisibles."
-        return "Cada consecuencia abre la puerta a la siguiente."
-
 
 class OllamaPlannerProvider(PlannerProvider):
     def __init__(self, settings: Settings):
@@ -91,7 +82,10 @@ class OllamaPlannerProvider(PlannerProvider):
         prompt = (
             "Devuelve solamente JSON valido con title, hook y scenes. "
             "Cada scene debe tener scene_number, duration_seconds, visual_prompt en ingles, "
-            "narration y subtitle en espanol. Estilo documental curioso y claro. "
+            "narration y subtitle en espanol. Para escenas de 4 segundos, narration debe tener "
+            "maximo 8 a 10 palabras y 65 caracteres. subtitle debe ser exactamente igual a narration. "
+            "No uses la frase 'Cada consecuencia abre la puerta a la siguiente'. "
+            "No escribas dos oraciones por escena. Estilo documental curioso y claro. "
             f"Tema: {request.topic}. Escenas: {request.scene_count}. "
             f"Duracion por escena: {request.scene_duration_seconds}."
         )

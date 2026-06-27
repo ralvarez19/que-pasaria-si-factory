@@ -16,8 +16,11 @@ from app.providers.planner import PlannerProvider
 from app.providers.tts import TTSProvider
 from app.providers.video import VideoProvider
 from app.schemas.jobs import JobCreate
+from app.schemas.planning import ContentPlan, PlannedScene
 from app.services.ffmpeg import FFmpegAssembler
+from app.services.outputs import copy_final_outputs, latest_video_path
 from app.services.paths import ensure_job_dirs, scene_audio_path, scene_clip_path, write_job_snapshot, write_script
+from app.services.script_quality import load_manual_plan, resolve_manual_script_path, validate_and_repair_plan
 from app.services.subtitles import generate_srt
 from app.services.telegram import TelegramNotifier, TelegramSendResult
 
@@ -75,6 +78,7 @@ class JobWorker:
             width=request.width,
             height=request.height,
             fps=request.fps,
+            script_path=request.script_path,
             telegram_status="pending" if self.settings.telegram_enabled else "disabled",
         )
         db.add(job)
@@ -162,18 +166,26 @@ class JobWorker:
         job.status = JobStatus.PLANNING.value
         job.started_at = datetime.utcnow()
         db.commit()
-        plan = await self.planner.create_plan(
-            JobCreate(
-                topic=job.topic,
-                duration_seconds=job.duration_seconds,
-                scene_duration_seconds=job.scene_duration_seconds,
-                language=job.language,
-                aspect_ratio=job.aspect_ratio,
-                width=job.width,
-                height=job.height,
-                fps=job.fps,
-            )
+        request = JobCreate(
+            topic=job.topic,
+            duration_seconds=job.duration_seconds,
+            scene_duration_seconds=job.scene_duration_seconds,
+            language=job.language,
+            aspect_ratio=job.aspect_ratio,
+            width=job.width,
+            height=job.height,
+            fps=job.fps,
+            script_path=job.script_path,
         )
+        manual_script_path = resolve_manual_script_path(request)
+        if manual_script_path and manual_script_path.exists():
+            plan = load_manual_plan(manual_script_path, request)
+            job_logger.info("Guion manual cargado desde %s", manual_script_path)
+        else:
+            if manual_script_path:
+                job_logger.info("Guion manual no encontrado en %s; usando planner automatico", manual_script_path)
+            plan = await self.planner.create_plan(request)
+            plan = validate_and_repair_plan(plan, request)
         job.title = plan.title
         job.hook = plan.hook
         job.script_path = str(write_script(self.settings, job.id, plan))
@@ -198,6 +210,7 @@ class JobWorker:
         job = db.scalar(select(Job).where(Job.id == job_id).options(selectinload(Job.scenes)).execution_options(populate_existing=True))
         if job is None:
             return
+        self._validate_persisted_script(db, job)
         job.status = JobStatus.GENERATING_VIDEO.value
         db.commit()
         for scene in job.scenes:
@@ -230,6 +243,44 @@ class JobWorker:
             scene.status = SceneStatus.COMPLETED.value
             db.commit()
             job_logger.info("Escena %03d video generado prompt_id=%s seconds=%.2f", scene.scene_number, scene.prompt_id, scene.generation_seconds)
+
+    def _validate_persisted_script(self, db: Session, job: Job) -> None:
+        if not job.scenes:
+            raise ValueError("El job no tiene escenas para generar")
+        request = JobCreate(
+            topic=job.topic,
+            duration_seconds=job.duration_seconds,
+            scene_duration_seconds=job.scene_duration_seconds,
+            language=job.language,
+            aspect_ratio=job.aspect_ratio,
+            width=job.width,
+            height=job.height,
+            fps=job.fps,
+        )
+        plan = ContentPlan(
+            title=job.title or job.topic,
+            hook=job.hook or job.title or job.topic,
+            scenes=[
+                PlannedScene(
+                    scene_number=scene.scene_number,
+                    duration_seconds=scene.duration_seconds,
+                    visual_prompt=scene.visual_prompt,
+                    narration=scene.narration,
+                    subtitle=scene.subtitle,
+                )
+                for scene in job.scenes
+            ],
+        )
+        repaired = validate_and_repair_plan(plan, request)
+        job.title = repaired.title
+        job.hook = repaired.hook
+        for scene, repaired_scene in zip(job.scenes, repaired.scenes, strict=True):
+            scene.visual_prompt = repaired_scene.visual_prompt
+            scene.narration = repaired_scene.narration
+            scene.subtitle = repaired_scene.subtitle
+            scene.duration_seconds = repaired_scene.duration_seconds
+        write_job_snapshot(self.settings, job)
+        db.commit()
 
     async def _generate_audio(self, db: Session, job_id: str, job_logger: logging.Logger) -> None:
         job = db.scalar(select(Job).where(Job.id == job_id).options(selectinload(Job.scenes)).execution_options(populate_existing=True))
@@ -268,10 +319,12 @@ class JobWorker:
         generate_srt(job.scenes, subtitles_path)
         final_path = self.assembler.assemble(job_id, job.scenes, subtitles_path, width=job.width, height=job.height, fps=job.fps)
         job.final_video_path = str(final_path)
+        copies = copy_final_outputs(self.settings, final_path, topic=job.topic, job_id=job.id)
         db.commit()
         job_logger.info("Video final ensamblado en %s", final_path)
+        job_logger.info("Video copiado a latest=%s archive=%s", copies.latest_path, copies.archive_path)
 
-    async def send_telegram_for_job(self, db: Session, job_id: str, job_logger: logging.Logger | None = None) -> TelegramSendResult:
+    async def send_telegram_for_job(self, db: Session, job_id: str, job_logger: logging.Logger | None = None, video_path_override: Path | None = None) -> TelegramSendResult:
         job_logger = job_logger or get_job_logger(job_id, self.settings.jobs_dir)
         job = db.get(Job, job_id)
         if job is None:
@@ -287,30 +340,34 @@ class JobWorker:
             logger.info("Telegram deshabilitado para job %s", job_id)
             return TelegramSendResult(ok=False, status="disabled", video_path=job.final_video_path, error="Telegram deshabilitado")
 
-        if not job.final_video_path:
+        if not job.final_video_path and video_path_override is None:
             error = "El job no tiene final_video_path"
             job.telegram_status = "failed"
             job.telegram_error = error
+            job.telegram_message_id = None
             write_job_snapshot(self.settings, job)
             db.commit()
             job_logger.error("Telegram no enviado: %s", error)
             return TelegramSendResult(ok=False, status="failed", error=error)
 
-        final_path = Path(job.final_video_path)
-        if not final_path.exists():
-            error = f"El video final no existe en disco: {final_path}"
+        final_path = Path(video_path_override or job.final_video_path)
+        validation_error = self._validate_video_for_telegram(final_path)
+        if validation_error:
             job.telegram_status = "failed"
-            job.telegram_error = error
+            job.telegram_error = validation_error
+            job.telegram_message_id = None
             write_job_snapshot(self.settings, job)
             db.commit()
-            job_logger.error("Telegram no enviado: %s", error)
-            return TelegramSendResult(ok=False, status="failed", video_path=str(final_path), error=error)
+            job_logger.error("Telegram no enviado: %s", validation_error)
+            logger.error("Telegram no enviado para job %s: %s", job_id, validation_error)
+            return TelegramSendResult(ok=False, status="failed", video_path=str(final_path), error=validation_error)
 
         job.telegram_status = "pending"
         job.telegram_error = None
         write_job_snapshot(self.settings, job)
         db.commit()
 
+        final_path = final_path.resolve()
         size_bytes = final_path.stat().st_size
         job_logger.info(
             "Telegram habilitado video=%s size_bytes=%s chat_id=%s",
@@ -318,23 +375,65 @@ class JobWorker:
             size_bytes,
             self.telegram_notifier.masked_chat_id(),
         )
-        result = await self.telegram_notifier.send_video(final_path, self._telegram_caption(job))
+        result = await self._send_telegram_with_retry(final_path, self._telegram_caption(job), job_logger)
         job = db.get(Job, job_id)
         if job is None:
             return result
+        job.status = JobStatus.COMPLETED.value
         if result.ok:
             job.telegram_status = "sent"
             job.telegram_error = None
             job.telegram_sent_at = datetime.utcnow()
+            job.telegram_message_id = result.telegram_message_id
             job_logger.info("Telegram enviado method=%s message_id=%s", result.method, result.telegram_message_id)
         else:
-            job.telegram_status = result.status
+            job.telegram_status = "failed"
             job.telegram_error = result.error
             job.telegram_sent_at = None
+            job.telegram_message_id = None
             job_logger.error("Telegram fallo status=%s error=%s", result.status, result.error)
+            logger.error("Telegram fallo para job %s status=%s error=%s", job_id, result.status, result.error)
         write_job_snapshot(self.settings, job)
         db.commit()
         return result
+
+    async def send_latest_telegram(self, caption: str) -> TelegramSendResult:
+        path = latest_video_path(self.settings)
+        validation_error = self._validate_video_for_telegram(path)
+        if validation_error:
+            return TelegramSendResult(ok=False, status="failed", video_path=str(path), error=validation_error)
+        return await self.telegram_notifier.send_video(path.resolve(), caption)
+
+    async def _send_telegram_with_retry(self, video_path: Path, caption: str, job_logger: logging.Logger) -> TelegramSendResult:
+        waits = (2, 5)
+        last_result: TelegramSendResult | None = None
+        for attempt, wait_seconds in enumerate(waits, start=1):
+            job_logger.info("Telegram intento %s: esperando %s segundos antes de enviar", attempt, wait_seconds)
+            await asyncio.sleep(wait_seconds)
+            validation_error = self._validate_video_for_telegram(video_path)
+            if validation_error:
+                last_result = TelegramSendResult(ok=False, status="failed", video_path=str(video_path), error=validation_error)
+                job_logger.error("Telegram intento %s cancelado: %s", attempt, validation_error)
+                continue
+            last_result = await self.telegram_notifier.send_video(video_path.resolve(), caption)
+            if last_result.ok:
+                return last_result
+            job_logger.error("Telegram intento %s fallo: %s", attempt, last_result.error)
+        return last_result or TelegramSendResult(ok=False, status="failed", video_path=str(video_path), error="Telegram no pudo enviar el video")
+
+    @staticmethod
+    def _validate_video_for_telegram(video_path: Path) -> str | None:
+        resolved = Path(video_path).resolve()
+        if not resolved.exists():
+            return f"El video final no existe en disco: {resolved}"
+        if resolved.stat().st_size <= 0:
+            return f"El video final esta vacio: {resolved}"
+        try:
+            with resolved.open("rb") as handle:
+                handle.read(1)
+        except OSError as exc:
+            return f"El video final no se puede leer o esta bloqueado: {resolved}: {exc}"
+        return None
 
     @staticmethod
     def _telegram_caption(job: Job) -> str:
