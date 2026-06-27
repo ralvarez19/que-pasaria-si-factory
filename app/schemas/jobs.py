@@ -69,6 +69,9 @@ class JobResponse(BaseModel):
     height: int
     fps: int
     final_video_path: str | None = None
+    telegram_status: str | None = None
+    telegram_error: str | None = None
+    telegram_sent_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None = None
@@ -92,3 +95,12 @@ class TTSTestRequest(BaseModel):
 class TTSTestResponse(BaseModel):
     audio_path: str
     prompt_id: str | None = None
+
+
+class TelegramSendResponse(BaseModel):
+    ok: bool
+    status: str
+    method: str | None = None
+    video_path: str | None = None
+    error: str | None = None
+    telegram_message_id: int | None = None

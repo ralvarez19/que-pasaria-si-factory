@@ -8,7 +8,17 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.enums import JobStatus, SceneStatus
 from app.db.session import get_db
 from app.models.job import Job, Scene
-from app.schemas.jobs import HealthResponse, JobCreate, JobListResponse, JobQueuedResponse, JobResponse, SceneResponse, TTSTestRequest, TTSTestResponse
+from app.schemas.jobs import (
+    HealthResponse,
+    JobCreate,
+    JobListResponse,
+    JobQueuedResponse,
+    JobResponse,
+    SceneResponse,
+    TelegramSendResponse,
+    TTSTestRequest,
+    TTSTestResponse,
+)
 from app.services.paths import write_job_snapshot
 from app.services.worker import JobWorker
 
@@ -96,6 +106,9 @@ async def retry_job(job_id: str, db: Session = Depends(get_db), worker: JobWorke
     job.status = JobStatus.QUEUED.value
     job.error_message = None
     job.completed_at = None
+    job.telegram_status = "pending" if worker.settings.telegram_enabled else "disabled"
+    job.telegram_error = None
+    job.telegram_sent_at = None
     for scene in job.scenes:
         if scene.status in {SceneStatus.FAILED.value, SceneStatus.SKIPPED.value, SceneStatus.GENERATING.value}:
             scene.status = SceneStatus.PENDING.value
@@ -117,3 +130,41 @@ def download_job(job_id: str, db: Session = Depends(get_db)) -> FileResponse:
     if not final_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El archivo final no existe en disco")
     return FileResponse(final_path, media_type="video/mp4", filename=f"{job.id}.mp4")
+
+
+@router.post("/api/v1/jobs/{job_id}/send-telegram", response_model=TelegramSendResponse)
+async def send_job_to_telegram(job_id: str, db: Session = Depends(get_db), worker: JobWorker = Depends(get_worker)) -> TelegramSendResponse:
+    job = db.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado")
+    if not job.final_video_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El job no tiene video final")
+    final_path = Path(job.final_video_path)
+    if not final_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"El archivo final no existe en disco: {final_path}")
+    configuration_error = worker.telegram_notifier.configuration_error()
+    if configuration_error:
+        job.telegram_status = "disabled" if not worker.settings.telegram_enabled else "failed"
+        job.telegram_error = configuration_error
+        write_job_snapshot(worker.settings, job)
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=configuration_error)
+
+    result = await worker.send_telegram_for_job(db, job_id)
+    if not result.ok:
+        return TelegramSendResponse(
+            ok=False,
+            status=result.status,
+            method=result.method,
+            video_path=result.video_path,
+            error=result.error,
+            telegram_message_id=result.telegram_message_id,
+        )
+    return TelegramSendResponse(
+        ok=True,
+        status=result.status,
+        method=result.method,
+        video_path=result.video_path,
+        error=result.error,
+        telegram_message_id=result.telegram_message_id,
+    )

@@ -11,6 +11,7 @@ from app.providers.planner import get_planner_provider
 from app.providers.tts import get_tts_provider
 from app.providers.video import get_video_provider
 from app.services.ffmpeg import FFmpegAssembler
+from app.services.telegram import TelegramNotifier
 from app.services.worker import JobWorker
 
 
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         video_provider=get_video_provider(settings),
         tts_provider=get_tts_provider(settings),
         assembler=FFmpegAssembler(settings),
+        telegram_notifier=TelegramNotifier(settings),
     )
     app.state.worker = worker
     await worker.start()

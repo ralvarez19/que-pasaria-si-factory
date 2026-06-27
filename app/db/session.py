@@ -20,7 +20,29 @@ def init_db() -> None:
     from app.models import job  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_job_columns()
     _ensure_sqlite_scene_columns()
+
+
+def _ensure_sqlite_job_columns() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+    inspector = inspect(engine)
+    if "jobs" not in inspector.get_table_names():
+        return
+    existing = {column["name"] for column in inspector.get_columns("jobs")}
+    statements = []
+    if "telegram_status" not in existing:
+        statements.append("ALTER TABLE jobs ADD COLUMN telegram_status VARCHAR(40)")
+    if "telegram_error" not in existing:
+        statements.append("ALTER TABLE jobs ADD COLUMN telegram_error TEXT")
+    if "telegram_sent_at" not in existing:
+        statements.append("ALTER TABLE jobs ADD COLUMN telegram_sent_at DATETIME")
+    if not statements:
+        return
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
 
 
 def _ensure_sqlite_scene_columns() -> None:

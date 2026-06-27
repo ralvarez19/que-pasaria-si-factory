@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -18,6 +19,7 @@ from app.schemas.jobs import JobCreate
 from app.services.ffmpeg import FFmpegAssembler
 from app.services.paths import ensure_job_dirs, scene_audio_path, scene_clip_path, write_job_snapshot, write_script
 from app.services.subtitles import generate_srt
+from app.services.telegram import TelegramNotifier, TelegramSendResult
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +33,14 @@ class JobWorker:
         video_provider: VideoProvider,
         tts_provider: TTSProvider,
         assembler: FFmpegAssembler,
+        telegram_notifier: TelegramNotifier,
     ):
         self.settings = settings
         self.planner = planner
         self.video_provider = video_provider
         self.tts_provider = tts_provider
         self.assembler = assembler
+        self.telegram_notifier = telegram_notifier
         self.queue: asyncio.Queue[str] = asyncio.Queue()
         self.task: asyncio.Task[None] | None = None
         self._stopping = asyncio.Event()
@@ -71,6 +75,7 @@ class JobWorker:
             width=request.width,
             height=request.height,
             fps=request.fps,
+            telegram_status="pending" if self.settings.telegram_enabled else "disabled",
         )
         db.add(job)
         db.commit()
@@ -139,6 +144,7 @@ class JobWorker:
                     write_job_snapshot(self.settings, job)
                     db.commit()
                 job_logger.info("Trabajo completado")
+                await self.send_telegram_for_job(db, job_id, job_logger)
             except Exception as exc:
                 db.rollback()
                 job = db.get(Job, job_id)
@@ -264,6 +270,76 @@ class JobWorker:
         job.final_video_path = str(final_path)
         db.commit()
         job_logger.info("Video final ensamblado en %s", final_path)
+
+    async def send_telegram_for_job(self, db: Session, job_id: str, job_logger: logging.Logger | None = None) -> TelegramSendResult:
+        job_logger = job_logger or get_job_logger(job_id, self.settings.jobs_dir)
+        job = db.get(Job, job_id)
+        if job is None:
+            return TelegramSendResult(ok=False, status="failed", error="Job no encontrado")
+
+        if not self.settings.telegram_enabled:
+            job.telegram_status = "disabled"
+            job.telegram_error = None
+            job.telegram_sent_at = None
+            write_job_snapshot(self.settings, job)
+            db.commit()
+            job_logger.info("Telegram deshabilitado para este job")
+            logger.info("Telegram deshabilitado para job %s", job_id)
+            return TelegramSendResult(ok=False, status="disabled", video_path=job.final_video_path, error="Telegram deshabilitado")
+
+        if not job.final_video_path:
+            error = "El job no tiene final_video_path"
+            job.telegram_status = "failed"
+            job.telegram_error = error
+            write_job_snapshot(self.settings, job)
+            db.commit()
+            job_logger.error("Telegram no enviado: %s", error)
+            return TelegramSendResult(ok=False, status="failed", error=error)
+
+        final_path = Path(job.final_video_path)
+        if not final_path.exists():
+            error = f"El video final no existe en disco: {final_path}"
+            job.telegram_status = "failed"
+            job.telegram_error = error
+            write_job_snapshot(self.settings, job)
+            db.commit()
+            job_logger.error("Telegram no enviado: %s", error)
+            return TelegramSendResult(ok=False, status="failed", video_path=str(final_path), error=error)
+
+        job.telegram_status = "pending"
+        job.telegram_error = None
+        write_job_snapshot(self.settings, job)
+        db.commit()
+
+        size_bytes = final_path.stat().st_size
+        job_logger.info(
+            "Telegram habilitado video=%s size_bytes=%s chat_id=%s",
+            final_path,
+            size_bytes,
+            self.telegram_notifier.masked_chat_id(),
+        )
+        result = await self.telegram_notifier.send_video(final_path, self._telegram_caption(job))
+        job = db.get(Job, job_id)
+        if job is None:
+            return result
+        if result.ok:
+            job.telegram_status = "sent"
+            job.telegram_error = None
+            job.telegram_sent_at = datetime.utcnow()
+            job_logger.info("Telegram enviado method=%s message_id=%s", result.method, result.telegram_message_id)
+        else:
+            job.telegram_status = result.status
+            job.telegram_error = result.error
+            job.telegram_sent_at = None
+            job_logger.error("Telegram fallo status=%s error=%s", result.status, result.error)
+        write_job_snapshot(self.settings, job)
+        db.commit()
+        return result
+
+    @staticmethod
+    def _telegram_caption(job: Job) -> str:
+        title = job.title or job.topic
+        return f"🎬 {title}\n\nVideo generado automáticamente por Qué Pasaría Si Factory.\nJob: {job.id}"
 
     @staticmethod
     def _is_cancelled(db: Session, job_id: str) -> bool:

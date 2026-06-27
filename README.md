@@ -7,6 +7,7 @@ API local para fabricar videos cortos de estilo documental a partir de un tema t
 ```
 
 El MVP crea un trabajo, planifica escenas, genera clips locales o reales con ComfyUI, crea audio silencioso o voz local por escena, escribe subtítulos SRT y ensambla un MP4 final con FFmpeg.
+Opcionalmente envía el MP4 final por Telegram cuando `TELEGRAM_ENABLED=true`.
 
 ## Arquitectura
 
@@ -18,6 +19,7 @@ Tema -> Planner -> escenas -> VideoProvider -> TTSProvider -> SRT -> FFmpeg -> `
 - `ComfyUIVideoProvider`: usa `POST /prompt` e `/history/{prompt_id}`.
 - `SilentTTSProvider`: crea audio silencioso para validar el pipeline.
 - `ComfyUITTSProvider`: genera voz local por escena con un workflow API de ComfyUI.
+- `TelegramNotifier`: envía `final.mp4` por Telegram sin fallar el job si Telegram responde con error.
 - SQLite persiste jobs y escenas.
 - Un worker asyncio procesa una escena de video a la vez.
 
@@ -54,8 +56,12 @@ Copia `.env.example` a `.env` con `scripts\setup.ps1` y ajusta:
 - `PLANNER_PROVIDER=mock` u `ollama`
 - `VIDEO_PROVIDER=placeholder` o `comfyui`
 - `TTS_PROVIDER=silent` o `comfyui`
-- `TTS_AUDIO_FORMAT=wav`
+- `TTS_AUDIO_FORMAT=flac`
 - `TTS_SCENE_MODE=per_scene`
+- `TELEGRAM_ENABLED=false`
+- `TELEGRAM_BOT_TOKEN=`
+- `TELEGRAM_CHAT_ID=`
+- `TELEGRAM_SEND_AS_VIDEO=true`
 - `COMFYUI_BASE_URL=http://127.0.0.1:8188`
 - `COMFYUI_VIDEO_WORKFLOW=workflows/video/ltx23_t2v_api.json`
 - `COMFYUI_TTS_WORKFLOW=workflows/audio/chatterbox_tts_api.json`
@@ -89,7 +95,7 @@ Completa la sección `tts` en `config/workflow_bindings.json` con los node IDs r
 
 ```env
 TTS_PROVIDER=comfyui
-TTS_AUDIO_FORMAT=wav
+TTS_AUDIO_FORMAT=flac
 TTS_SCENE_MODE=per_scene
 ```
 
@@ -98,6 +104,31 @@ Prueba una narración corta con la API activa:
 ```powershell
 scripts\test-tts.ps1 -Text "¿Qué pasaría si la Luna desapareciera de repente?"
 ```
+
+## Telegram
+
+Para enviar el MP4 final automáticamente:
+
+```env
+TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=token_del_bot
+TELEGRAM_CHAT_ID=chat_id_destino
+TELEGRAM_SEND_AS_VIDEO=true
+```
+
+Prueba un archivo existente:
+
+```powershell
+scripts\send-telegram-test.ps1 -VideoPath "C:\ruta\final.mp4" -Caption "Prueba de envío"
+```
+
+También puedes reintentar manualmente:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/jobs/{job_id}/send-telegram
+```
+
+Guía completa: `docs/telegram.md`.
 
 ## Crear Un Trabajo
 

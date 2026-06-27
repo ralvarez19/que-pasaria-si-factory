@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     tts_audio_format: str = "wav"
     tts_scene_mode: str = "per_scene"
 
+    telegram_enabled: bool = False
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    telegram_send_as_video: bool = True
+
     scene_duration_seconds: int = 4
     default_video_duration_seconds: int = 60
     default_scene_count: int = 15

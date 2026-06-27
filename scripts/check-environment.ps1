@@ -52,6 +52,14 @@ $ttsProvider = $envValues["TTS_PROVIDER"]
 if (!$ttsProvider) { $ttsProvider = "silent" }
 Test-Ok "TTS provider" $true $ttsProvider
 
+$telegramEnabled = $envValues["TELEGRAM_ENABLED"]
+if (!$telegramEnabled) { $telegramEnabled = "false" }
+$telegramToken = $envValues["TELEGRAM_BOT_TOKEN"]
+$telegramChatId = $envValues["TELEGRAM_CHAT_ID"]
+Test-Ok "Telegram enabled" $true $telegramEnabled
+Test-Ok "Telegram bot token" (![string]::IsNullOrWhiteSpace($telegramToken)) ($(if ($telegramToken) { "Configurado (oculto)" } else { "No configurado" }))
+Test-Ok "Telegram chat id" (![string]::IsNullOrWhiteSpace($telegramChatId)) ($(if ($telegramChatId) { "Configurado parcialmente: $($telegramChatId.Substring(0, [Math]::Min(3, $telegramChatId.Length)))..." } else { "No configurado" }))
+
 $ttsWorkflow = $envValues["COMFYUI_TTS_WORKFLOW"]
 if (!$ttsWorkflow) { $ttsWorkflow = "workflows/audio/chatterbox_tts_api.json" }
 $ttsWorkflowExists = Test-Path $ttsWorkflow
