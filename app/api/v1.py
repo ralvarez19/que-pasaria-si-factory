@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.enums import JobStatus, SceneStatus
 from app.db.session import get_db
 from app.models.job import Job, Scene
-from app.schemas.jobs import HealthResponse, JobCreate, JobListResponse, JobQueuedResponse, JobResponse, SceneResponse
+from app.schemas.jobs import HealthResponse, JobCreate, JobListResponse, JobQueuedResponse, JobResponse, SceneResponse, TTSTestRequest, TTSTestResponse
 from app.services.paths import write_job_snapshot
 from app.services.worker import JobWorker
 
@@ -29,6 +29,23 @@ async def create_job(request_body: JobCreate, db: Session = Depends(get_db), wor
     job = worker.create_job(db, request_body)
     await worker.enqueue(job.id)
     return JobQueuedResponse(job_id=job.id, status=JobStatus(job.status))
+
+
+@router.post("/api/v1/tts/test", response_model=TTSTestResponse)
+async def test_tts(request_body: TTSTestRequest, worker: JobWorker = Depends(get_worker)) -> TTSTestResponse:
+    output_dir = worker.settings.data_dir / "tts_tests"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"tts_test.{worker.settings.tts_audio_format.strip().lstrip('.') or 'wav'}"
+    try:
+        result = await worker.tts_provider.generate_scene_audio(
+            request_body.text,
+            worker.settings.scene_duration_seconds,
+            output_path,
+            filename_prefix="tts_test",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+    return TTSTestResponse(audio_path=str(result.path), prompt_id=result.prompt_id)
 
 
 @router.get("/api/v1/jobs", response_model=JobListResponse)

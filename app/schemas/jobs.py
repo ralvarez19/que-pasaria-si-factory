@@ -42,10 +42,12 @@ class SceneResponse(BaseModel):
     narration: str
     subtitle: str
     prompt_id: str | None = None
+    audio_prompt_id: str | None = None
     seed: int | None = None
     video_path: str | None = None
     audio_path: str | None = None
     error_message: str | None = None
+    audio_error: str | None = None
     generation_seconds: float | None = None
 
     model_config = {"from_attributes": True}
@@ -81,3 +83,12 @@ class JobListResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class TTSTestRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+
+
+class TTSTestResponse(BaseModel):
+    audio_path: str
+    prompt_id: str | None = None

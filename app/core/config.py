@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     tts_provider: str = "silent"
     video_provider: str = "placeholder"
+    tts_audio_format: str = "wav"
+    tts_scene_mode: str = "per_scene"
 
     scene_duration_seconds: int = 4
     default_video_duration_seconds: int = 60

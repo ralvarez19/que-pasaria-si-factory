@@ -84,6 +84,40 @@ def apply_video_bindings(
     return result
 
 
+def validate_tts_bindings(workflow: dict[str, Any], bindings: dict[str, Any]) -> None:
+    tts = bindings.get("tts")
+    if not isinstance(tts, dict):
+        raise WorkflowConfigurationError("config/workflow_bindings.json debe contener la seccion 'tts'.")
+    required = ("text", "filename")
+    for key in required:
+        _assert_workflow_input_exists(workflow, str(tts.get(f"{key}_node_id", "")), str(tts.get(f"{key}_input_name", "")))
+    if tts.get("seed_node_id") or tts.get("seed_input_name"):
+        _assert_workflow_input_exists(workflow, str(tts.get("seed_node_id", "")), str(tts.get("seed_input_name", "")))
+    if tts.get("format_node_id") or tts.get("format_input_name"):
+        _assert_workflow_input_exists(workflow, str(tts.get("format_node_id", "")), str(tts.get("format_input_name", "")))
+
+
+def apply_tts_bindings(
+    workflow: dict[str, Any],
+    bindings: dict[str, Any],
+    *,
+    text: str,
+    filename_prefix: str,
+    seed: int | None = None,
+) -> dict[str, Any]:
+    result = copy.deepcopy(workflow)
+    tts = bindings.get("tts")
+    if not isinstance(tts, dict):
+        raise WorkflowConfigurationError("config/workflow_bindings.json debe contener la seccion 'tts'.")
+    set_workflow_input(result, str(tts.get("text_node_id", "")), str(tts.get("text_input_name", "")), text)
+    set_workflow_input(result, str(tts.get("filename_node_id", "")), str(tts.get("filename_input_name", "")), filename_prefix)
+    if tts.get("format_node_id") and tts.get("format_input_name") and tts.get("format_value"):
+        set_workflow_input(result, str(tts.get("format_node_id", "")), str(tts.get("format_input_name", "")), tts.get("format_value"))
+    if seed is not None and (tts.get("seed_node_id") or tts.get("seed_input_name")):
+        set_workflow_input(result, str(tts.get("seed_node_id", "")), str(tts.get("seed_input_name", "")), seed)
+    return result
+
+
 def validate_t2v_workflow(workflow: dict[str, Any], bindings: dict[str, Any] | None = None) -> None:
     report = inspect_workflow(workflow)
     switch = get_text_to_video_switch(workflow, bindings)

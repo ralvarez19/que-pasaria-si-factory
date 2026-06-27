@@ -1,4 +1,12 @@
-from app.services.workflow import WorkflowConfigurationError, apply_video_bindings, inspect_workflow, validate_t2v_workflow, validate_video_bindings
+from app.services.workflow import (
+    WorkflowConfigurationError,
+    apply_tts_bindings,
+    apply_video_bindings,
+    inspect_workflow,
+    validate_t2v_workflow,
+    validate_tts_bindings,
+    validate_video_bindings,
+)
 
 
 def test_apply_video_bindings_updates_structured_inputs() -> None:
@@ -45,6 +53,36 @@ def test_apply_video_bindings_updates_structured_inputs() -> None:
     assert updated["1"]["inputs"]["text"] == "new"
     assert updated["2"]["inputs"]["width"] == 1280
     assert workflow["1"]["inputs"]["text"] == "old"
+
+
+def test_apply_tts_bindings_updates_text_filename_and_seed() -> None:
+    workflow = {
+        "1": {"inputs": {"text": "old"}},
+        "2": {"inputs": {"filename_prefix": "old"}},
+        "3": {"inputs": {"seed": 1}},
+        "4": {"inputs": {"format": "wav"}},
+    }
+    bindings = {
+        "tts": {
+            "text_node_id": "1",
+            "text_input_name": "text",
+            "filename_node_id": "2",
+            "filename_input_name": "filename_prefix",
+            "format_node_id": "4",
+            "format_input_name": "format",
+            "format_value": "flac",
+            "seed_node_id": "3",
+            "seed_input_name": "seed",
+        }
+    }
+
+    validate_tts_bindings(workflow, bindings)
+    updated = apply_tts_bindings(workflow, bindings, text="narración", filename_prefix="scene_001", seed=42)
+
+    assert updated["1"]["inputs"]["text"] == "narración"
+    assert updated["2"]["inputs"]["filename_prefix"] == "scene_001"
+    assert updated["3"]["inputs"]["seed"] == 42
+    assert updated["4"]["inputs"]["format"] == "flac"
 
 
 def test_apply_video_bindings_applies_static_overrides() -> None:

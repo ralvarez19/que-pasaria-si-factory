@@ -236,15 +236,21 @@ class JobWorker:
                 return
             output_path = scene_audio_path(self.settings, job_id, scene.scene_number)
             try:
-                audio_path = await self.tts_provider.generate_scene_audio(scene.narration, scene.duration_seconds, output_path)
+                result = await self.tts_provider.generate_scene_audio(
+                    scene.narration,
+                    scene.duration_seconds,
+                    output_path,
+                    filename_prefix=f"{job_id}_scene_{scene.scene_number:03d}_tts",
+                )
             except Exception as exc:
-                scene.status = SceneStatus.FAILED.value
-                scene.error_message = str(exc)
+                scene.audio_error = str(exc)
                 db.commit()
                 raise
-            scene.audio_path = str(audio_path)
+            scene.audio_path = str(result.path)
+            scene.audio_prompt_id = result.prompt_id
+            scene.audio_error = None
             db.commit()
-            job_logger.info("Escena %03d audio generado", scene.scene_number)
+            job_logger.info("Escena %03d audio generado prompt_id=%s seconds=%.2f", scene.scene_number, scene.audio_prompt_id, result.generation_seconds)
 
     async def _assemble(self, db: Session, job_id: str, job_logger: logging.Logger) -> None:
         job = db.scalar(select(Job).where(Job.id == job_id).options(selectinload(Job.scenes)).execution_options(populate_existing=True))

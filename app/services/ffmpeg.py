@@ -47,8 +47,9 @@ class FFmpegAssembler:
             str(joined_video),
         ])
 
+        normalized_audio = self._normalize_audio(scenes, temp_dir)
         audio_list = temp_dir / "ffmpeg_audio_list.txt"
-        audio_paths = [Path(scene.audio_path) for scene in sorted(scenes, key=lambda item: item.scene_number) if scene.audio_path]
+        audio_paths = normalized_audio
         audio_list.write_text("".join(f"file '{path.resolve().as_posix()}'\n" for path in audio_paths), encoding="utf-8")
         joined_audio = temp_dir / "joined_audio.m4a"
         self._run([
@@ -86,6 +87,33 @@ class FFmpegAssembler:
             str(final_path),
         ])
         return final_path
+
+    def _normalize_audio(self, scenes: list[Scene], temp_dir: Path) -> list[Path]:
+        normalized: list[Path] = []
+        for scene in sorted(scenes, key=lambda item: item.scene_number):
+            if not scene.audio_path:
+                raise FFmpegError(f"La escena {scene.scene_number} no tiene audio_path.")
+            input_path = Path(scene.audio_path)
+            if not input_path.exists():
+                raise FFmpegError(f"No existe el audio de la escena {scene.scene_number}: {input_path}")
+            output_path = temp_dir / f"normalized_audio_scene_{scene.scene_number:03d}.m4a"
+            self._run([
+                self.settings.ffmpeg_path,
+                "-y",
+                "-i",
+                str(input_path),
+                "-af",
+                f"apad,atrim=0:{scene.duration_seconds},asetpts=N/SR/TB",
+                "-ar",
+                "44100",
+                "-ac",
+                "2",
+                "-c:a",
+                "aac",
+                str(output_path),
+            ])
+            normalized.append(output_path)
+        return normalized
 
     def _normalize_clips(self, scenes: list[Scene], temp_dir: Path, *, width: int, height: int, fps: int) -> list[Path]:
         normalized: list[Path] = []

@@ -6,7 +6,7 @@ API local para fabricar videos cortos de estilo documental a partir de un tema t
 {"topic": "¿Qué pasaría si la Luna desapareciera?"}
 ```
 
-El MVP crea un trabajo, planifica escenas, genera clips de prueba locales, crea audio silencioso por escena, escribe subtítulos SRT y ensambla un MP4 final con FFmpeg. La integración real con ComfyUI queda preparada para activarse al colocar el workflow API y completar los bindings.
+El MVP crea un trabajo, planifica escenas, genera clips locales o reales con ComfyUI, crea audio silencioso o voz local por escena, escribe subtítulos SRT y ensambla un MP4 final con FFmpeg.
 
 ## Arquitectura
 
@@ -17,7 +17,7 @@ Tema -> Planner -> escenas -> VideoProvider -> TTSProvider -> SRT -> FFmpeg -> `
 - `PlaceholderVideoProvider`: genera clips de prueba con FFmpeg.
 - `ComfyUIVideoProvider`: usa `POST /prompt` e `/history/{prompt_id}`.
 - `SilentTTSProvider`: crea audio silencioso para validar el pipeline.
-- `ComfyUITTSProvider`: interfaz lista para el workflow de voz.
+- `ComfyUITTSProvider`: genera voz local por escena con un workflow API de ComfyUI.
 - SQLite persiste jobs y escenas.
 - Un worker asyncio procesa una escena de video a la vez.
 
@@ -31,6 +31,9 @@ scripts\check-environment.ps1
 ## Ejecución
 
 ```powershell
+cd "C:\ProyectosIA\que-pasaria-si-factory"
+.\scripts\run-dev.ps1
+
 scripts\run-dev.ps1
 ```
 
@@ -51,6 +54,8 @@ Copia `.env.example` a `.env` con `scripts\setup.ps1` y ajusta:
 - `PLANNER_PROVIDER=mock` u `ollama`
 - `VIDEO_PROVIDER=placeholder` o `comfyui`
 - `TTS_PROVIDER=silent` o `comfyui`
+- `TTS_AUDIO_FORMAT=wav`
+- `TTS_SCENE_MODE=per_scene`
 - `COMFYUI_BASE_URL=http://127.0.0.1:8188`
 - `COMFYUI_VIDEO_WORKFLOW=workflows/video/ltx23_t2v_api.json`
 - `COMFYUI_TTS_WORKFLOW=workflows/audio/chatterbox_tts_api.json`
@@ -67,6 +72,32 @@ Exporta el workflow en formato API desde ComfyUI y colócalo en:
 `workflows/video/ltx23_t2v_api.json`
 
 Copia `config/workflow_bindings.example.json` como `config/workflow_bindings.json` y completa los node IDs e input names reales. La API no inventa identificadores: si faltan workflow o bindings, el job falla con un error descriptivo.
+
+## Texto A Voz Con ComfyUI
+
+Guarda el workflow API de Chatterbox TTS en:
+
+`workflows/audio/chatterbox_tts_api.json`
+
+Inspecciona posibles bindings:
+
+```powershell
+scripts\inspect-tts-workflow.ps1
+```
+
+Completa la sección `tts` en `config/workflow_bindings.json` con los node IDs reales para texto, filename prefix y seed si existe. Luego activa:
+
+```env
+TTS_PROVIDER=comfyui
+TTS_AUDIO_FORMAT=wav
+TTS_SCENE_MODE=per_scene
+```
+
+Prueba una narración corta con la API activa:
+
+```powershell
+scripts\test-tts.ps1 -Text "¿Qué pasaría si la Luna desapareciera de repente?"
+```
 
 ## Crear Un Trabajo
 
@@ -119,6 +150,7 @@ Cada trabajo crea:
 - `No existe el nodo`: revisa el node ID exportado desde ComfyUI.
 - `ComfyUI no responde`: inicia ComfyUI y confirma `COMFYUI_BASE_URL`.
 - El modo por defecto `VIDEO_PROVIDER=placeholder` no usa ComfyUI; cambia a `comfyui` para LTX-2.3 real.
+- `ComfyUI TTS termino... pero no se encontro audio`: revisa el nodo final del workflow TTS y sus bindings.
 
 ## Pruebas
 

@@ -40,9 +40,16 @@
     ]
   },
   "tts": {
-    "text_node_id": "",
+    "text_node_id": "9",
     "text_input_name": "text",
-    "filename_node_id": "",
-    "filename_input_name": "filename_prefix"
+    "filename_node_id": "10",
+    "filename_input_name": "filename_prefix",
+    "format_node_id": "10",
+    "format_input_name": "format",
+    "format_value": "flac",
+    "seed_node_id": "9",
+    "seed_input_name": "seed",
+    "output_node_id": "10",
+    "output_class_type": "SaveAudioAdvanced"
   }
 }

@@ -26,6 +26,13 @@
     "text_node_id": "",
     "text_input_name": "text",
     "filename_node_id": "",
-    "filename_input_name": "filename_prefix"
+    "filename_input_name": "filename_prefix",
+    "format_node_id": "",
+    "format_input_name": "format",
+    "format_value": "wav",
+    "seed_node_id": "",
+    "seed_input_name": "",
+    "output_node_id": "",
+    "output_class_type": ""
   }
 }

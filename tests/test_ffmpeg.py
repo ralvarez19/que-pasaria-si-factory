@@ -43,4 +43,5 @@ def test_ffmpeg_assemble_invokes_commands_with_mock(monkeypatch: pytest.MonkeyPa
     final = assembler.assemble("job", scenes, subtitles, width=1280, height=720, fps=25)
 
     assert final.name == "final.mp4"
-    assert len(calls) == 4
+    assert len(calls) == 5
+    assert any("apad,atrim=0:4" in part for call in calls for part in call)

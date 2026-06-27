@@ -39,3 +39,54 @@ Test-Ok "Base de datos" (Test-Path "data\content_factory.db") "Se crea automatic
 
 New-Item -ItemType Directory -Force logs, data\jobs, data\outputs, data\temp, workflows\video, workflows\audio | Out-Null
 Test-Ok "Carpetas de salida" $true "logs, data\jobs, data\outputs, data\temp"
+
+$envValues = @{}
+if (Test-Path ".env") {
+    Get-Content ".env" | ForEach-Object {
+        if ($_ -match "^\s*([^#][^=]+)=(.*)$") {
+            $envValues[$matches[1].Trim()] = $matches[2].Trim()
+        }
+    }
+}
+$ttsProvider = $envValues["TTS_PROVIDER"]
+if (!$ttsProvider) { $ttsProvider = "silent" }
+Test-Ok "TTS provider" $true $ttsProvider
+
+$ttsWorkflow = $envValues["COMFYUI_TTS_WORKFLOW"]
+if (!$ttsWorkflow) { $ttsWorkflow = "workflows/audio/chatterbox_tts_api.json" }
+$ttsWorkflowExists = Test-Path $ttsWorkflow
+if ($ttsProvider -eq "comfyui") {
+    Test-Ok "Workflow TTS" $ttsWorkflowExists $ttsWorkflow
+    $ttsBindingsOk = $false
+    if (Test-Path "config\workflow_bindings.json") {
+        try {
+            $bindings = Get-Content -Raw -Encoding UTF8 "config\workflow_bindings.json" | ConvertFrom-Json
+            $ttsBindingsOk = $bindings.tts -and $bindings.tts.text_node_id -and $bindings.tts.text_input_name -and $bindings.tts.filename_node_id -and $bindings.tts.filename_input_name
+        } catch {
+            $ttsBindingsOk = $false
+        }
+    }
+    Test-Ok "Bindings TTS" $ttsBindingsOk "tts.text_node_id/text_input_name/filename_node_id/filename_input_name"
+    if ($ttsWorkflowExists) {
+        try {
+            $workflow = Get-Content -Raw -Encoding UTF8 $ttsWorkflow | ConvertFrom-Json
+            $hasText = $false
+            $hasAudioSave = $false
+            foreach ($nodeProperty in $workflow.PSObject.Properties) {
+                $node = $nodeProperty.Value
+                $classType = [string]$node.class_type
+                if ($classType -match "(?i)text|prompt|tts|chatterbox") { $hasText = $true }
+                if ($classType -match "(?i)save.*audio|audio.*save|wav|sound") { $hasAudioSave = $true }
+                if ($node.inputs) {
+                    foreach ($inputProperty in $node.inputs.PSObject.Properties) {
+                        if ($inputProperty.Name -match "(?i)text|prompt|sentence|narration") { $hasText = $true }
+                        if ($inputProperty.Name -match "(?i)filename|prefix|path") { $hasAudioSave = $true }
+                    }
+                }
+            }
+            Test-Ok "Workflow TTS texto/audio" ($hasText -and $hasAudioSave) "nodo de texto=$hasText, nodo/archivo de audio=$hasAudioSave"
+        } catch {
+            Test-Ok "Workflow TTS texto/audio" $false "No se pudo inspeccionar el JSON"
+        }
+    }
+}

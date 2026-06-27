@@ -1,0 +1,55 @@
+{
+  "1": {
+    "inputs": {
+      "model_version": "v2",
+      "language": "Spanish",
+      "device": "auto",
+      "exaggeration": 0.3,
+      "temperature": 0.65,
+      "cfg_weight": 0.35,
+      "repetition_penalty": 1.2,
+      "min_p": 0.05,
+      "top_p": 0.95
+    },
+    "class_type": "ChatterBoxOfficial23LangEngineNode",
+    "_meta": {
+      "title": "⚙️ ChatterBox Official 23-Lang Engine"
+    }
+  },
+  "9": {
+    "inputs": {
+      "text": "¿Qué pasaría si la Luna desapareciera de repente?",
+      "narrator_voice": "none",
+      "seed": 1260229870,
+      "enable_chunking": true,
+      "max_chars_per_chunk": 400,
+      "chunk_combination_method": "auto",
+      "silence_between_chunks_ms": 150,
+      "enable_audio_cache": false,
+      "batch_size": 1,
+      "TTS_engine": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "UnifiedTTSTextNode",
+    "_meta": {
+      "title": "🎤 TTS Text"
+    }
+  },
+  "10": {
+    "inputs": {
+      "filename_prefix": "audio/ComfyUI",
+      "format": "flac",
+      "audioUI": "/api/view?filename=ComfyUI_00008.flac&type=output&subfolder=audio&rand=0.7171912294354279",
+      "audio": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "SaveAudioAdvanced",
+    "_meta": {
+      "title": "Save Audio (Advanced)"
+    }
+  }
+}

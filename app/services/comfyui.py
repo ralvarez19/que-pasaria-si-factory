@@ -8,9 +8,11 @@ import httpx
 from app.core.config import Settings
 from app.services.workflow import (
     WorkflowConfigurationError,
+    apply_tts_bindings,
     apply_video_bindings,
     load_json_file,
     load_workflow_bindings,
+    validate_tts_bindings,
     validate_t2v_workflow,
     validate_video_bindings,
 )
@@ -103,6 +105,38 @@ class ComfyUIClient:
                 await asyncio.sleep(1 + attempt)
         raise ComfyUIError(f"Fallo ComfyUI tras reintentos: {last_error}") from last_error
 
+    async def generate_tts_audio(
+        self,
+        *,
+        text: str,
+        filename_prefix: str,
+        seed: int | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        workflow_path = self.settings.comfyui_tts_workflow
+        bindings_path = self.settings.workflow_bindings_path
+        try:
+            workflow = load_json_file(workflow_path)
+            bindings = load_workflow_bindings(bindings_path)
+            validate_tts_bindings(workflow, bindings)
+            prepared = apply_tts_bindings(workflow, bindings, text=text, filename_prefix=filename_prefix, seed=seed)
+        except WorkflowConfigurationError:
+            raise
+        except Exception as exc:
+            raise WorkflowConfigurationError(f"No se pudo preparar el workflow de TTS: {exc}") from exc
+
+        last_error: Exception | None = None
+        for attempt in range(self.settings.comfyui_retries + 1):
+            try:
+                prompt_id = await self.submit_workflow(prepared)
+                history = await self.wait_for_history(prompt_id)
+                return prompt_id, history
+            except Exception as exc:
+                last_error = exc
+                if attempt >= self.settings.comfyui_retries:
+                    break
+                await asyncio.sleep(1 + attempt)
+        raise ComfyUIError(f"Fallo ComfyUI TTS tras reintentos: {last_error}") from last_error
+
     @staticmethod
     def find_generated_video(history: dict[str, Any]) -> dict[str, Any] | None:
         outputs = history.get("outputs", {})
@@ -117,6 +151,32 @@ class ComfyUIClient:
                     continue
                 for item in items:
                     if isinstance(item, dict) and item.get("filename"):
+                        return item
+        return None
+
+    @staticmethod
+    def find_generated_audio(history: dict[str, Any]) -> dict[str, Any] | None:
+        outputs = history.get("outputs", {})
+        if not isinstance(outputs, dict):
+            return None
+        audio_extensions = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")
+        for node_output in outputs.values():
+            if not isinstance(node_output, dict):
+                continue
+            for key in ("audio", "audios", "sounds", "files"):
+                items = node_output.get(key)
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if isinstance(item, dict) and item.get("filename"):
+                        return item
+                    if isinstance(item, str) and item.lower().endswith(audio_extensions):
+                        return {"filename": item, "subfolder": "", "type": "output"}
+            for items in node_output.values():
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if isinstance(item, dict) and str(item.get("filename", "")).lower().endswith(audio_extensions):
                         return item
         return None
 

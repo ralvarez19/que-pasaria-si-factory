@@ -49,4 +49,5 @@ def scene_clip_path(settings: Settings, job_id: str, scene_number: int) -> Path:
 
 
 def scene_audio_path(settings: Settings, job_id: str, scene_number: int) -> Path:
-    return settings.jobs_dir / job_id / "audio" / f"scene_{scene_number:03d}.m4a"
+    extension = settings.tts_audio_format.strip().lstrip(".") or "wav"
+    return settings.jobs_dir / job_id / "audio" / f"scene_{scene_number:03d}.{extension}"
