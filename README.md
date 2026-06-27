@@ -169,14 +169,30 @@ $body = @{
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/jobs -Body $body -ContentType "application/json"
 ```
 
-Si existe `data/input/manual_script.json`, la API lo usa automáticamente. Si el archivo indicado no existe, vuelve al planner automático.
+Si existe `data/input/manual_script.json`, la API lo usa automáticamente. Si pasas un `script_path` explícito y el archivo no existe, la API falla con un mensaje claro.
+
+Validar y crear desde JSON:
+
+```powershell
+scripts\validate-script.ps1 -ScriptPath "data/input/manual_script.json"
+scripts\create-job-from-script.ps1 -ScriptPath "data/input/manual_script.json"
+```
+
+Endpoints disponibles:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/scripts/validate -Body (@{ script_path = "data/input/manual_script.json" } | ConvertTo-Json) -ContentType "application/json"
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/jobs/from-script -Body (@{ script_path = "data/input/manual_script.json" } | ConvertTo-Json) -ContentType "application/json"
+```
+
+Guía completa: `docs/manual-script.md`.
 
 ## Reglas De Guion
 
 Para escenas de 4 segundos, la API valida y corrige el plan antes de generar:
 
 - título normalizado como `¿Qué pasaría si ...?`;
-- narraciones de una sola idea, máximo 65 caracteres;
+- narraciones manuales de una sola idea, entre 70 y 110 caracteres para escenas de 4 segundos;
 - eliminación de `Cada consecuencia abre la puerta a la siguiente`;
 - `subtitle` exactamente igual a `narration`;
 - limpieza previa al TTS de saltos de línea, puntos internos, `;` y `:`.
@@ -200,6 +216,7 @@ Cada trabajo crea:
 
 `data/jobs/{job_id}/job.json`
 `data/jobs/{job_id}/script.json`
+`data/jobs/{job_id}/input_script.json`
 `data/jobs/{job_id}/scenes/`
 `data/jobs/{job_id}/clips/`
 `data/jobs/{job_id}/audio/`

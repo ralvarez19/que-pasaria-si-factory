@@ -15,12 +15,15 @@ from app.schemas.jobs import (
     JobQueuedResponse,
     JobResponse,
     SceneResponse,
+    ScriptPathRequest,
+    ScriptValidationResponse,
     TelegramSendResponse,
     TTSTestRequest,
     TTSTestResponse,
 )
 from app.services.paths import write_job_snapshot
 from app.services.outputs import latest_video_path
+from app.services.script_quality import validate_manual_script_file
 from app.services.worker import JobWorker
 
 router = APIRouter()
@@ -37,7 +40,36 @@ def health() -> HealthResponse:
 
 @router.post("/api/v1/jobs", response_model=JobQueuedResponse, status_code=status.HTTP_202_ACCEPTED)
 async def create_job(request_body: JobCreate, db: Session = Depends(get_db), worker: JobWorker = Depends(get_worker)) -> JobQueuedResponse:
-    job = worker.create_job(db, request_body)
+    try:
+        job = worker.create_job(db, request_body)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    await worker.enqueue(job.id)
+    return JobQueuedResponse(job_id=job.id, status=JobStatus(job.status))
+
+
+@router.post("/api/v1/scripts/validate", response_model=ScriptValidationResponse)
+def validate_script(request_body: ScriptPathRequest) -> ScriptValidationResponse:
+    result = validate_manual_script_file(Path(request_body.script_path))
+    return ScriptValidationResponse(
+        ok=result.ok,
+        script_path=result.script_path,
+        errors=result.errors,
+        scene_count=result.scene_count,
+        title=result.title,
+        topic=result.topic,
+    )
+
+
+@router.post("/api/v1/jobs/from-script", response_model=JobQueuedResponse, status_code=status.HTTP_202_ACCEPTED)
+async def create_job_from_script(request_body: ScriptPathRequest, db: Session = Depends(get_db), worker: JobWorker = Depends(get_worker)) -> JobQueuedResponse:
+    validation = validate_manual_script_file(Path(request_body.script_path))
+    if not validation.ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"errors": validation.errors})
+    try:
+        job = worker.create_job_from_script(db, Path(request_body.script_path))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await worker.enqueue(job.id)
     return JobQueuedResponse(job_id=job.id, status=JobStatus(job.status))
 

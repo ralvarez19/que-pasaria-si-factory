@@ -49,6 +49,13 @@ def write_script(settings: Settings, job_id: str, plan: ContentPlan) -> Path:
     return script_path
 
 
+def write_input_script_copy(settings: Settings, job_id: str, source_path: Path) -> Path:
+    root = ensure_job_dirs(settings, job_id)
+    destination = root / "input_script.json"
+    destination.write_text(Path(source_path).read_text(encoding="utf-8"), encoding="utf-8")
+    return destination
+
+
 def scene_clip_path(settings: Settings, job_id: str, scene_number: int) -> Path:
     return settings.jobs_dir / job_id / "clips" / f"scene_{scene_number:03d}.mp4"
 

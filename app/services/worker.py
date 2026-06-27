@@ -19,8 +19,8 @@ from app.schemas.jobs import JobCreate
 from app.schemas.planning import ContentPlan, PlannedScene
 from app.services.ffmpeg import FFmpegAssembler
 from app.services.outputs import copy_final_outputs, latest_video_path
-from app.services.paths import ensure_job_dirs, scene_audio_path, scene_clip_path, write_job_snapshot, write_script
-from app.services.script_quality import load_manual_plan, resolve_manual_script_path, validate_and_repair_plan
+from app.services.paths import ensure_job_dirs, scene_audio_path, scene_clip_path, write_input_script_copy, write_job_snapshot, write_script
+from app.services.script_quality import load_manual_script, resolve_manual_script_path, validate_and_repair_plan
 from app.services.subtitles import generate_srt
 from app.services.telegram import TelegramNotifier, TelegramSendResult
 
@@ -66,6 +66,8 @@ class JobWorker:
         await self.queue.put(job_id)
 
     def create_job(self, db: Session, request: JobCreate) -> Job:
+        if request.script_path and not Path(request.script_path).exists():
+            raise ValueError(f"No existe el guion manual: {request.script_path}")
         job = Job(
             id=str(uuid4()),
             topic=request.topic,
@@ -79,6 +81,31 @@ class JobWorker:
             height=request.height,
             fps=request.fps,
             script_path=request.script_path,
+            telegram_status="pending" if self.settings.telegram_enabled else "disabled",
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        ensure_job_dirs(self.settings, job.id)
+        write_job_snapshot(self.settings, job)
+        return job
+
+    def create_job_from_script(self, db: Session, script_path: Path) -> Job:
+        manual = load_manual_script(script_path)
+        job = Job(
+            id=str(uuid4()),
+            topic=manual.topic,
+            title=manual.title,
+            status=JobStatus.QUEUED.value,
+            language=manual.language,
+            aspect_ratio=manual.aspect_ratio,
+            duration_seconds=manual.duration_seconds,
+            scene_duration_seconds=manual.scene_duration_seconds,
+            scene_count=len(manual.plan.scenes),
+            width=manual.width,
+            height=manual.height,
+            fps=manual.fps,
+            script_path=str(script_path),
             telegram_status="pending" if self.settings.telegram_enabled else "disabled",
         )
         db.add(job)
@@ -178,12 +205,27 @@ class JobWorker:
             script_path=job.script_path,
         )
         manual_script_path = resolve_manual_script_path(request)
-        if manual_script_path and manual_script_path.exists():
-            plan = load_manual_plan(manual_script_path, request)
+        if manual_script_path:
+            if not manual_script_path.exists():
+                if request.script_path:
+                    raise ValueError(f"No existe el guion manual: {manual_script_path}")
+                manual_script_path = None
+        if manual_script_path:
+            manual = load_manual_script(manual_script_path)
+            plan = manual.plan
+            job.topic = manual.topic
+            job.title = manual.title
+            job.language = manual.language
+            job.aspect_ratio = manual.aspect_ratio
+            job.duration_seconds = manual.duration_seconds
+            job.scene_duration_seconds = manual.scene_duration_seconds
+            job.scene_count = len(manual.plan.scenes)
+            job.width = manual.width
+            job.height = manual.height
+            job.fps = manual.fps
+            write_input_script_copy(self.settings, job.id, manual_script_path)
             job_logger.info("Guion manual cargado desde %s", manual_script_path)
         else:
-            if manual_script_path:
-                job_logger.info("Guion manual no encontrado en %s; usando planner automatico", manual_script_path)
             plan = await self.planner.create_plan(request)
             plan = validate_and_repair_plan(plan, request)
         job.title = plan.title

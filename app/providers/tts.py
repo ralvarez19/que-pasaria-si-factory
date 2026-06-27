@@ -56,7 +56,7 @@ class ComfyUITTSProvider(TTSProvider):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.monotonic()
         prefix = filename_prefix or output_path.with_suffix("").name
-        max_chars = 65 if duration_seconds <= 4 else 180
+        max_chars = 110 if duration_seconds <= 4 else 180
         prompt_id, history = await self.client.generate_tts_audio(
             text=clean_narration_for_tts(text, max_chars=max_chars),
             filename_prefix=prefix,

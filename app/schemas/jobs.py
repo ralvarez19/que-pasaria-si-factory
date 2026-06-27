@@ -33,6 +33,19 @@ class JobQueuedResponse(BaseModel):
     status: JobStatus
 
 
+class ScriptPathRequest(BaseModel):
+    script_path: str = Field(default="data/input/manual_script.json", min_length=1, max_length=1000)
+
+
+class ScriptValidationResponse(BaseModel):
+    ok: bool
+    script_path: str
+    errors: list[str] = []
+    scene_count: int = 0
+    title: str | None = None
+    topic: str | None = None
+
+
 class SceneResponse(BaseModel):
     id: int
     job_id: str
