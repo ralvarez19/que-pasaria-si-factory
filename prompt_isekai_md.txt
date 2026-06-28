@@ -1,23 +1,95 @@
-Actúa como guionista de videos cortos virales estilo anime isekai.
+Actúa como guionista profesional de videos cortos virales estilo anime isekai.
 
-Quiero historias en formato JSON para videos de 20 segundos, con 5 escenas de 4 segundos cada una.
+Necesito que generes historias en formato JSON válido para una fábrica automática de videos con IA.
 
-Tema: un protagonista humano es transportado a un mundo de fantasía y descubre un poder especial.
+Formato general:
 
-Reglas:
-- tono emocionante, misterioso y viral;
-- estilo anime/isekai;
-- narraciones que duren entre 3 y 4 segundos;
-- protagonista consistente en todas las escenas;
-- cada escena debe tener:
-  scene_number
-  duration_seconds
-  visual_prompt
-  narration
-  subtitle
-  tts_text
+* Cada historia debe ser un JSON independiente.
+* Duración total: 20 segundos.
+* Número de escenas: 5.
+* Duración por escena: 4 segundos.
+* Idioma: español.
+* Estilo: anime isekai, fantasía, misterio, emoción, tono viral.
+* Aspect ratio: 16:9.
+* width: 1280.
+* height: 720.
+* fps: 25.
 
-El visual_prompt debe estar en inglés y describir claramente al personaje principal, el entorno y la acción.
-El subtitle debe ser igual a narration.
-El tts_text debe ser una versión limpia para TTS.
-Dame el JSON completo válido.
+Tema base:
+Un protagonista humano es transportado a un mundo de fantasía y descubre un poder especial.
+
+Reglas del protagonista:
+
+* El protagonista debe mantenerse consistente en todas las escenas.
+* Define su apariencia desde la primera escena.
+* Repite los rasgos principales en cada visual_prompt.
+* Puede ser hombre o mujer, pero debe sentirse como personaje principal de anime isekai.
+
+Cada JSON debe tener esta estructura:
+{
+"title": "",
+"duration_seconds": 20,
+"scene_duration_seconds": 4,
+"language": "es",
+"style": "anime isekai viral",
+"aspect_ratio": "16:9",
+"width": 1280,
+"height": 720,
+"fps": 25,
+"scenes": [
+{
+"scene_number": 1,
+"duration_seconds": 4,
+"visual_prompt": "",
+"narration": "",
+"subtitle": "",
+"tts_text": ""
+}
+]
+}
+
+Reglas para visual_prompt:
+
+* Debe estar en inglés.
+* Debe describir claramente al protagonista, su apariencia, el entorno y la acción.
+* Debe tener estilo anime isekai cinematográfico.
+* Debe incluir iluminación, ambiente, emoción y movimiento.
+* No debe cambiar la apariencia del protagonista entre escenas.
+
+Reglas para narration:
+
+* Debe estar en español.
+* Debe sonar emocionante, misteriosa y viral.
+* Debe durar aproximadamente entre 3 y 4 segundos.
+* Debe tener entre 7 y 12 palabras.
+* No debe ser demasiado larga.
+* No debe ser genérica.
+* Debe conectar con la escena anterior.
+* Debe dejar curiosidad o tensión.
+* No repetir la misma estructura en todas las escenas.
+
+Reglas para subtitle:
+
+* Debe ser exactamente igual a narration.
+
+Reglas para tts_text:
+
+* Debe conservar el mismo significado que narration.
+* Debe estar limpio para voz TTS.
+* Evita símbolos raros, emojis o signos innecesarios.
+
+Estructura narrativa recomendada:
+Escena 1: el protagonista es transportado al otro mundo.
+Escena 2: despierta en un lugar extraño y peligroso.
+Escena 3: aparece una amenaza o criatura fantástica.
+Escena 4: descubre su poder especial.
+Escena 5: aparece un giro final que invite a continuar la historia.
+
+Importante:
+
+* Entrega únicamente JSON válido.
+* No uses markdown.
+* No expliques nada fuera del JSON.
+* No pongas comentarios.
+* No uses texto antes ni después.
+* Genera [AQUÍ PON EL NÚMERO] historias diferentes.
