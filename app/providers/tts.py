@@ -75,18 +75,24 @@ def get_tts_provider(settings: Settings) -> TTSProvider:
     return SilentTTSProvider(settings)
 
 
-def clean_narration_for_tts(text: str, max_chars: int = 65) -> str:
+def clean_narration_for_tts(text: str, max_chars: int | None = None) -> str:
     cleaned = text.replace("\r", " ").replace("\n", " ")
     cleaned = cleaned.replace("...", ",")
     cleaned = cleaned.replace(";", ",").replace(":", ",")
     cleaned = re.sub(r"(?<!\.)\.(?!\.)", ",", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    if len(cleaned) <= max_chars:
+    cleaned = re.sub(r"\s*,\s*", ", ", cleaned)
+    cleaned = re.sub(r",\s*,+", ", ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,")
+    if not cleaned:
+        raise ValueError("El texto TTS quedo vacio despues de limpiar")
+    if max_chars is None or len(cleaned) <= max_chars:
         return cleaned
     truncated = cleaned[:max_chars].rstrip()
     last_break = max(truncated.rfind(","), truncated.rfind(" "))
     if last_break >= 20:
         truncated = truncated[:last_break].rstrip(" ,")
+    if not truncated:
+        raise ValueError("El texto TTS quedo vacio despues de recortar")
     return truncated
 
 

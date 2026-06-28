@@ -16,11 +16,10 @@ from app.providers.planner import PlannerProvider
 from app.providers.tts import TTSProvider
 from app.providers.video import VideoProvider
 from app.schemas.jobs import JobCreate
-from app.schemas.planning import ContentPlan, PlannedScene
 from app.services.ffmpeg import FFmpegAssembler
 from app.services.outputs import copy_final_outputs, latest_video_path
 from app.services.paths import ensure_job_dirs, scene_audio_path, scene_clip_path, write_input_script_copy, write_job_snapshot, write_script
-from app.services.script_quality import load_manual_script, resolve_manual_script_path, validate_and_repair_plan
+from app.services.script_quality import PROHIBITED_PHRASE, load_manual_script, normalize_manual_narration, resolve_manual_script_path, validate_and_repair_plan
 from app.services.subtitles import generate_srt
 from app.services.telegram import TelegramNotifier, TelegramSendResult
 
@@ -240,6 +239,7 @@ class JobWorker:
                     visual_prompt=planned.visual_prompt,
                     narration=planned.narration,
                     subtitle=planned.subtitle,
+                    tts_text=planned.tts_text or planned.narration,
                     status=SceneStatus.PENDING.value,
                 )
             )
@@ -289,38 +289,18 @@ class JobWorker:
     def _validate_persisted_script(self, db: Session, job: Job) -> None:
         if not job.scenes:
             raise ValueError("El job no tiene escenas para generar")
-        request = JobCreate(
-            topic=job.topic,
-            duration_seconds=job.duration_seconds,
-            scene_duration_seconds=job.scene_duration_seconds,
-            language=job.language,
-            aspect_ratio=job.aspect_ratio,
-            width=job.width,
-            height=job.height,
-            fps=job.fps,
-        )
-        plan = ContentPlan(
-            title=job.title or job.topic,
-            hook=job.hook or job.title or job.topic,
-            scenes=[
-                PlannedScene(
-                    scene_number=scene.scene_number,
-                    duration_seconds=scene.duration_seconds,
-                    visual_prompt=scene.visual_prompt,
-                    narration=scene.narration,
-                    subtitle=scene.subtitle,
-                )
-                for scene in job.scenes
-            ],
-        )
-        repaired = validate_and_repair_plan(plan, request)
-        job.title = repaired.title
-        job.hook = repaired.hook
-        for scene, repaired_scene in zip(job.scenes, repaired.scenes, strict=True):
-            scene.visual_prompt = repaired_scene.visual_prompt
-            scene.narration = repaired_scene.narration
-            scene.subtitle = repaired_scene.subtitle
-            scene.duration_seconds = repaired_scene.duration_seconds
+        if not job.title:
+            raise ValueError("El job no tiene title")
+        for scene in job.scenes:
+            if not scene.visual_prompt.strip():
+                raise ValueError(f"La escena {scene.scene_number} no tiene visual_prompt")
+            if not scene.narration.strip():
+                raise ValueError(f"La escena {scene.scene_number} no tiene narration")
+            if not scene.subtitle.strip():
+                raise ValueError(f"La escena {scene.scene_number} no tiene subtitle")
+            if PROHIBITED_PHRASE.casefold() in scene.narration.casefold():
+                raise ValueError(f"La escena {scene.scene_number} contiene una frase prohibida")
+            scene.tts_text = normalize_manual_narration(scene.tts_text or scene.narration)
         write_job_snapshot(self.settings, job)
         db.commit()
 
@@ -335,8 +315,10 @@ class JobWorker:
                 return
             output_path = scene_audio_path(self.settings, job_id, scene.scene_number)
             try:
+                tts_text = scene.tts_text or scene.narration
+                job_logger.info("Escena %03d TTS original=%r limpio=%r", scene.scene_number, scene.narration[:120], tts_text[:120])
                 result = await self.tts_provider.generate_scene_audio(
-                    scene.narration,
+                    tts_text,
                     scene.duration_seconds,
                     output_path,
                     filename_prefix=f"{job_id}_scene_{scene.scene_number:03d}_tts",
@@ -362,6 +344,8 @@ class JobWorker:
         final_path = self.assembler.assemble(job_id, job.scenes, subtitles_path, width=job.width, height=job.height, fps=job.fps)
         job.final_video_path = str(final_path)
         copies = copy_final_outputs(self.settings, final_path, topic=job.topic, job_id=job.id)
+        job.latest_video_path = str(copies.latest_path)
+        job.archive_video_path = str(copies.archive_path)
         db.commit()
         job_logger.info("Video final ensamblado en %s", final_path)
         job_logger.info("Video copiado a latest=%s archive=%s", copies.latest_path, copies.archive_path)

@@ -29,6 +29,10 @@ try {
         $validation.errors | ForEach-Object { Write-Host "- $_" }
         exit 1
     }
+    if ($validation.warnings.Count -gt 0) {
+        Write-Host "Warnings:"
+        $validation.warnings | ForEach-Object { Write-Host "- $_" -ForegroundColor Yellow }
+    }
 
     $created = Invoke-JsonPost $client "$BaseUrl/api/v1/jobs/from-script" @{ script_path = $ScriptPath }
     $jobId = $created.job_id

@@ -7,6 +7,7 @@ class PlannedScene(BaseModel):
     visual_prompt: str = Field(min_length=10)
     narration: str = Field(min_length=1)
     subtitle: str = Field(min_length=1)
+    tts_text: str | None = None
 
 
 class ContentPlan(BaseModel):

@@ -41,9 +41,34 @@ class ScriptValidationResponse(BaseModel):
     ok: bool
     script_path: str
     errors: list[str] = []
+    warnings: list[str] = []
     scene_count: int = 0
     title: str | None = None
     topic: str | None = None
+
+
+class ManualBatchRunRequest(BaseModel):
+    scripts_dir: str = Field(default="data/input/manual_scripts/pending", min_length=1, max_length=1000)
+    stop_on_error: bool = False
+
+
+class ManualBatchStatusResponse(BaseModel):
+    running: bool
+    current_file: str | None = None
+    current_job_id: str | None = None
+    pending_count: int = 0
+    processing_count: int = 0
+    done_count: int = 0
+    failed_file_count: int = 0
+    last_error: str | None = None
+    processed_count: int = 0
+    failed_count: int = 0
+    videos_generated: int = 0
+    telegram_sent: int = 0
+    started_at: str | None = None
+    finished_at: str | None = None
+    scripts_dir: str
+    stop_on_error: bool = False
 
 
 class SceneResponse(BaseModel):
@@ -55,6 +80,7 @@ class SceneResponse(BaseModel):
     visual_prompt: str
     narration: str
     subtitle: str
+    tts_text: str | None = None
     prompt_id: str | None = None
     audio_prompt_id: str | None = None
     seed: int | None = None
@@ -83,6 +109,8 @@ class JobResponse(BaseModel):
     height: int
     fps: int
     final_video_path: str | None = None
+    latest_video_path: str | None = None
+    archive_video_path: str | None = None
     script_path: str | None = None
     telegram_status: str | None = None
     telegram_error: str | None = None

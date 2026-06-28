@@ -118,7 +118,7 @@ def test_validate_manual_long_narration_fails(tmp_path: Path) -> None:
     result = validate_manual_script_file(manual)
 
     assert result.ok is False
-    assert any("110 caracteres" in error for error in result.errors)
+    assert any("115 caracteres" in error for error in result.errors)
 
 
 def test_validate_manual_short_narration_fails(tmp_path: Path) -> None:
@@ -127,8 +127,23 @@ def test_validate_manual_short_narration_fails(tmp_path: Path) -> None:
     result = validate_manual_script_file(manual)
 
     assert result.ok is False
-    assert any("70 caracteres" in error for error in result.errors)
+    assert any("60 caracteres" in error for error in result.errors)
     assert any("10 palabras" in error for error in result.errors)
+
+
+def test_validate_manual_repairs_nearly_short_narration(tmp_path: Path) -> None:
+    narration = "Durante ocho minutos, nadie sabría que la luz ya dejó de viajar."
+    manual = write_manual_script(tmp_path, {"narration": narration, "subtitle": narration})
+
+    result = validate_manual_script_file(manual)
+    manual_script = load_manual_script(manual)
+
+    assert result.ok is True
+    assert result.warnings
+    repaired = manual_script.plan.scenes[0].narration
+    assert repaired == "Durante ocho minutos, nadie sabría que la luz del Sol ya dejó de viajar."
+    assert manual_script.plan.scenes[0].subtitle == repaired
+    assert manual_script.plan.scenes[0].tts_text == "Durante ocho minutos, nadie sabría que la luz del Sol ya dejó de viajar"
 
 
 def test_validate_manual_subtitle_mismatch_fails(tmp_path: Path) -> None:
@@ -138,6 +153,35 @@ def test_validate_manual_subtitle_mismatch_fails(tmp_path: Path) -> None:
 
     assert result.ok is False
     assert any("subtitle distinto" in error for error in result.errors)
+
+
+def test_validate_manual_allows_points_and_generates_tts_text(tmp_path: Path) -> None:
+    narration = "Al principio, el cielo perdería su punto más familiar. La noche cambia mucho"
+    manual = write_manual_script(tmp_path, {"narration": narration, "subtitle": narration})
+
+    result = validate_manual_script_file(manual)
+    manual_script = load_manual_script(manual)
+
+    assert result.ok is True
+    scene = manual_script.plan.scenes[0]
+    assert scene.subtitle == narration
+    assert scene.tts_text == "Al principio, el cielo perdería su punto más familiar, La noche cambia mucho"
+
+
+def test_validate_manual_uses_explicit_tts_text(tmp_path: Path) -> None:
+    narration = "Al principio, el cielo perdería su punto más familiar. La noche cambia mucho"
+    manual = write_manual_script(
+        tmp_path,
+        {
+            "narration": narration,
+            "subtitle": narration,
+            "tts_text": "Al principio, el cielo perdería su punto más familiar, la noche cambia mucho",
+        },
+    )
+
+    manual_script = load_manual_script(manual)
+
+    assert manual_script.plan.scenes[0].tts_text == "Al principio, el cielo perdería su punto más familiar, la noche cambia mucho"
 
 
 def test_validate_manual_prohibited_phrase_fails(tmp_path: Path) -> None:

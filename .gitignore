@@ -12,3 +12,5 @@ data/*.db
 !data/jobs/.gitkeep
 !data/outputs/.gitkeep
 !data/temp/.gitkeep
+
+data/input/manual_scripts/*

@@ -187,12 +187,34 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/jobs/from-script -Bo
 
 Guía completa: `docs/manual-script.md`.
 
+## Lote De Guiones Manuales
+
+Coloca varios JSON en:
+
+`data/input/manual_scripts/pending`
+
+Ejecuta:
+
+```powershell
+scripts\process-manual-scripts.ps1
+scripts\show-manual-batch-status.ps1
+```
+
+Endpoints:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/batch/manual-scripts/run
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/batch/manual-scripts/status
+```
+
+Los archivos terminados se mueven a `done` con un `.result.json`; los fallidos se mueven a `failed` con un `.error.json`. Guía completa: `docs/manual-batch.md`.
+
 ## Reglas De Guion
 
 Para escenas de 4 segundos, la API valida y corrige el plan antes de generar:
 
 - título normalizado como `¿Qué pasaría si ...?`;
-- narraciones manuales de una sola idea, entre 70 y 110 caracteres para escenas de 4 segundos;
+- narraciones manuales de una sola idea, entre 60 y 115 caracteres para escenas de 4 segundos;
 - eliminación de `Cada consecuencia abre la puerta a la siguiente`;
 - `subtitle` exactamente igual a `narration`;
 - limpieza previa al TTS de saltos de línea, puntos internos, `;` y `:`.

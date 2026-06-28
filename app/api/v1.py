@@ -14,6 +14,8 @@ from app.schemas.jobs import (
     JobListResponse,
     JobQueuedResponse,
     JobResponse,
+    ManualBatchRunRequest,
+    ManualBatchStatusResponse,
     SceneResponse,
     ScriptPathRequest,
     ScriptValidationResponse,
@@ -31,6 +33,10 @@ router = APIRouter()
 
 def get_worker(request: Request) -> JobWorker:
     return request.app.state.worker
+
+
+def get_manual_batch_runner(request: Request):
+    return request.app.state.manual_batch_runner
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -55,6 +61,7 @@ def validate_script(request_body: ScriptPathRequest) -> ScriptValidationResponse
         ok=result.ok,
         script_path=result.script_path,
         errors=result.errors,
+        warnings=result.warnings,
         scene_count=result.scene_count,
         title=result.title,
         topic=result.topic,
@@ -72,6 +79,20 @@ async def create_job_from_script(request_body: ScriptPathRequest, db: Session = 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await worker.enqueue(job.id)
     return JobQueuedResponse(job_id=job.id, status=JobStatus(job.status))
+
+
+@router.post("/api/v1/batch/manual-scripts/run", response_model=ManualBatchStatusResponse)
+async def run_manual_scripts_batch(request_body: ManualBatchRunRequest, batch_runner=Depends(get_manual_batch_runner)) -> ManualBatchStatusResponse:
+    try:
+        status_payload = batch_runner.start(Path(request_body.scripts_dir), stop_on_error=request_body.stop_on_error)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return ManualBatchStatusResponse(**status_payload)
+
+
+@router.get("/api/v1/batch/manual-scripts/status", response_model=ManualBatchStatusResponse)
+def get_manual_scripts_batch_status(batch_runner=Depends(get_manual_batch_runner)) -> ManualBatchStatusResponse:
+    return ManualBatchStatusResponse(**batch_runner.get_status())
 
 
 @router.post("/api/v1/tts/test", response_model=TTSTestResponse)

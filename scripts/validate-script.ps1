@@ -25,6 +25,10 @@ try {
     Write-Host "topic: $($result.topic)"
     Write-Host "title: $($result.title)"
     Write-Host "scene_count: $($result.scene_count)"
+    if ($result.warnings.Count -gt 0) {
+        Write-Host "warnings:"
+        $result.warnings | ForEach-Object { Write-Host "- $_" -ForegroundColor Yellow }
+    }
     if ($result.errors.Count -gt 0) {
         Write-Host "errors:"
         $result.errors | ForEach-Object { Write-Host "- $_" }

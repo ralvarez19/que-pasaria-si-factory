@@ -31,7 +31,8 @@ Tambien puedes pasar otra ruta con la API o scripts.
       "duration_seconds": 4,
       "visual_prompt": "A cinematic realistic view of planet Earth from space as the Moon slowly fades away, dramatic documentary style.",
       "narration": "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio",
-      "subtitle": "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio"
+      "subtitle": "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio",
+      "tts_text": "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio"
     }
   ]
 }
@@ -67,12 +68,14 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/jobs/from-script -Bo
 
 Para escenas de 4 segundos:
 
-- `narration` debe tener entre 70 y 110 caracteres;
-- `narration` debe tener entre 10 y 15 palabras;
+- `narration` debe tener entre 60 y 115 caracteres;
+- el rango ideal es 70 a 110 caracteres; fuera de ese rango se acepta con warning;
+- `narration` debe tener entre 10 y 16 palabras;
 - `subtitle` debe ser exactamente igual a `narration`;
 - no uses varias oraciones largas;
 - no uses `Cada consecuencia abre la puerta a la siguiente`;
 - conserva tildes, ñ y signos `¿ ?`.
+- `tts_text` es opcional; si falta, se genera desde `narration`.
 
 Ejemplos buenos:
 
@@ -95,13 +98,29 @@ data/jobs/{job_id}/input_script.json
 
 `script.json` es el guion normalizado que usa el pipeline. `input_script.json` es una copia exacta del archivo manual usado.
 
+## tts_text Y Puntos
+
+El SRT usa `subtitle`. El TTS usa `tts_text`.
+
+Si tu narracion contiene puntos, la app los conserva en `subtitle` y genera una version limpia para TTS:
+
+```json
+{
+  "narration": "Al principio, el cielo perdería su punto más familiar. La noche cambia mucho",
+  "subtitle": "Al principio, el cielo perdería su punto más familiar. La noche cambia mucho",
+  "tts_text": "Al principio, el cielo perdería su punto más familiar, La noche cambia mucho"
+}
+```
+
+Esto evita cortes de ChatterBox sin perder puntuacion visual en subtitulos.
+
 ## Errores Frecuentes
 
 - `No existe el guion manual`: revisa la ruta enviada.
 - `El guion manual debe incluir 'scenes' no vacio`: agrega al menos una escena.
 - `La escena N no tiene visual_prompt`: completa el prompt visual.
-- `La escena N tiene menos de 70 caracteres`: amplía la narracion.
-- `La escena N supera 110 caracteres`: acorta la narracion.
+- `La escena N tiene menos de 60 caracteres`: amplía la narracion.
+- `La escena N supera 115 caracteres`: acorta la narracion.
 - `La escena N tiene menos de 10 palabras`: agrega detalle documental.
-- `La escena N supera 15 palabras`: reduce la frase.
+- `La escena N supera 16 palabras`: reduce la frase.
 - `La escena N tiene subtitle distinto de narration`: copia exactamente el mismo texto.

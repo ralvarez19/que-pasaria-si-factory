@@ -40,6 +40,10 @@ def _ensure_sqlite_job_columns() -> None:
         statements.append("ALTER TABLE jobs ADD COLUMN telegram_sent_at DATETIME")
     if "telegram_message_id" not in existing:
         statements.append("ALTER TABLE jobs ADD COLUMN telegram_message_id INTEGER")
+    if "latest_video_path" not in existing:
+        statements.append("ALTER TABLE jobs ADD COLUMN latest_video_path TEXT")
+    if "archive_video_path" not in existing:
+        statements.append("ALTER TABLE jobs ADD COLUMN archive_video_path TEXT")
     if not statements:
         return
     with engine.begin() as connection:
@@ -59,6 +63,8 @@ def _ensure_sqlite_scene_columns() -> None:
         statements.append("ALTER TABLE scenes ADD COLUMN audio_prompt_id VARCHAR(120)")
     if "audio_error" not in existing:
         statements.append("ALTER TABLE scenes ADD COLUMN audio_error TEXT")
+    if "tts_text" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN tts_text TEXT")
     if not statements:
         return
     with engine.begin() as connection:

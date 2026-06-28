@@ -119,7 +119,7 @@ def test_sanitize_tts_text_preserves_spanish_and_replaces_punctuation() -> None:
 
     sanitized = sanitize_tts_text(text)
 
-    assert sanitized == "¿Qué pasaría si, La Luna desapareciera? El océano cambiaría, mañana, nueva era,"
+    assert sanitized == "¿Qué pasaría si, La Luna desapareciera? El océano cambiaría, mañana, nueva era"
     assert "ñ" in sanitized
     assert "é" in sanitized
     assert "\n" not in sanitized
@@ -143,3 +143,21 @@ def test_clean_narration_for_tts_limits_short_scenes_without_cutting_words() -> 
     assert len(cleaned) <= 65
     assert cleaned == "El océano cambiaría durante años, La humanidad tendría nuevas"
     assert "ñ" in cleaned
+
+
+def test_clean_narration_for_tts_replaces_periods_without_touching_accents() -> None:
+    text = "Al principio, el cielo perdería su punto más familiar. La noche parecería extraña."
+
+    cleaned = clean_narration_for_tts(text, max_chars=None)
+
+    assert cleaned == "Al principio, el cielo perdería su punto más familiar, La noche parecería extraña"
+    assert "." not in cleaned
+    assert "perdería" in cleaned
+
+
+def test_clean_narration_for_tts_compacts_ellipsis_and_commas() -> None:
+    text = "La Luna desaparece...  luego,, todo cambia: lentamente; sin ruido."
+
+    cleaned = clean_narration_for_tts(text, max_chars=None)
+
+    assert cleaned == "La Luna desaparece, luego, todo cambia, lentamente, sin ruido"
