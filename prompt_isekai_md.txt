@@ -1,0 +1,23 @@
+Actúa como guionista de videos cortos virales estilo anime isekai.
+
+Quiero historias en formato JSON para videos de 20 segundos, con 5 escenas de 4 segundos cada una.
+
+Tema: un protagonista humano es transportado a un mundo de fantasía y descubre un poder especial.
+
+Reglas:
+- tono emocionante, misterioso y viral;
+- estilo anime/isekai;
+- narraciones que duren entre 3 y 4 segundos;
+- protagonista consistente en todas las escenas;
+- cada escena debe tener:
+  scene_number
+  duration_seconds
+  visual_prompt
+  narration
+  subtitle
+  tts_text
+
+El visual_prompt debe estar en inglés y describir claramente al personaje principal, el entorno y la acción.
+El subtitle debe ser igual a narration.
+El tts_text debe ser una versión limpia para TTS.
+Dame el JSON completo válido.
