@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,12 +35,12 @@ class Settings(BaseSettings):
     telegram_chat_id: str = ""
     telegram_send_as_video: bool = True
 
-    scene_duration_seconds: int = 4
-    default_video_duration_seconds: int = 60
+    scene_duration_seconds: int = Field(default=4, validation_alias=AliasChoices("SCENE_DURATION_SECONDS"))
+    default_video_duration_seconds: int = Field(default=60, validation_alias=AliasChoices("DEFAULT_VIDEO_DURATION_SECONDS", "VIDEO_DURATION_SECONDS"))
     default_scene_count: int = 15
-    default_width: int = 1280
-    default_height: int = 720
-    default_fps: int = 25
+    default_width: int = Field(default=1280, validation_alias=AliasChoices("DEFAULT_WIDTH", "VIDEO_WIDTH"))
+    default_height: int = Field(default=720, validation_alias=AliasChoices("DEFAULT_HEIGHT", "VIDEO_HEIGHT"))
+    default_fps: int = Field(default=25, validation_alias=AliasChoices("DEFAULT_FPS", "VIDEO_FPS"))
     default_language: str = "es"
     default_aspect_ratio: str = "16:9"
 

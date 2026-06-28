@@ -1,95 +1,235 @@
-Actúa como guionista profesional de videos cortos virales estilo anime isekai.
+Actúa como guionista de videos cortos virales estilo anime isekai.
 
-Necesito que generes historias en formato JSON válido para una fábrica automática de videos con IA.
+Necesito guiones en formato JSON válido para una fábrica automática de videos con IA.
 
-Formato general:
+Los videos serán procesados automáticamente, así que el JSON debe estar completo, correcto y listo para guardar como archivo `.json`.
 
-* Cada historia debe ser un JSON independiente.
-* Duración total: 20 segundos.
-* Número de escenas: 5.
-* Duración por escena: 4 segundos.
-* Idioma: español.
-* Estilo: anime isekai, fantasía, misterio, emoción, tono viral.
-* Aspect ratio: 16:9.
-* width: 1280.
-* height: 720.
-* fps: 25.
+## Objetivo
 
-Tema base:
-Un protagonista humano es transportado a un mundo de fantasía y descubre un poder especial.
+Crear historias estilo anime isekai, fantasía, aventura y misterio, con ritmo viral y final tipo cliffhanger.
 
-Reglas del protagonista:
+Cada historia debe tener:
 
-* El protagonista debe mantenerse consistente en todas las escenas.
-* Define su apariencia desde la primera escena.
-* Repite los rasgos principales en cada visual_prompt.
-* Puede ser hombre o mujer, pero debe sentirse como personaje principal de anime isekai.
+* protagonista consistente;
+* persona transportada a otro mundo;
+* reino mágico;
+* amenaza misteriosa;
+* despertar de un poder oculto;
+* giro final que invite a ver la siguiente parte.
 
-Cada JSON debe tener esta estructura:
+No uses contenido sexual, no sexualices personajes menores, no uses gore ni violencia gráfica.
+
+## Formato obligatorio
+
+Cada historia debe ser un JSON completo e independiente.
+
+Cada JSON debe incluir obligatoriamente estos campos:
+
+* topic
+* title
+* duration_seconds
+* scene_duration_seconds
+* language
+* aspect_ratio
+* width
+* height
+* fps
+* style
+* scenes
+
+No omitas ningún campo.
+
+## Configuración fija
+
+```json
 {
-"title": "",
-"duration_seconds": 20,
-"scene_duration_seconds": 4,
-"language": "es",
-"style": "anime isekai viral",
-"aspect_ratio": "16:9",
-"width": 1280,
-"height": 720,
-"fps": 25,
-"scenes": [
-{
-"scene_number": 1,
-"duration_seconds": 4,
-"visual_prompt": "",
-"narration": "",
-"subtitle": "",
-"tts_text": ""
+  "duration_seconds": 60,
+  "scene_duration_seconds": 5,
+  "language": "es",
+  "aspect_ratio": "16:9",
+  "width": 1280,
+  "height": 720,
+  "fps": 25,
+  "style": "anime isekai viral"
 }
-]
-}
+```
 
-Reglas para visual_prompt:
+Cada historia debe tener exactamente 12 escenas de 5 segundos.
 
-* Debe estar en inglés.
-* Debe describir claramente al protagonista, su apariencia, el entorno y la acción.
-* Debe tener estilo anime isekai cinematográfico.
-* Debe incluir iluminación, ambiente, emoción y movimiento.
-* No debe cambiar la apariencia del protagonista entre escenas.
+La cantidad de escenas debe coincidir con esta fórmula:
 
-Reglas para narration:
+duration_seconds / scene_duration_seconds = cantidad de escenas
 
-* Debe estar en español.
-* Debe sonar emocionante, misteriosa y viral.
-* Debe durar aproximadamente entre 3 y 4 segundos.
-* Debe tener entre 7 y 12 palabras.
-* No debe ser demasiado larga.
-* No debe ser genérica.
-* Debe conectar con la escena anterior.
-* Debe dejar curiosidad o tensión.
-* No repetir la misma estructura en todas las escenas.
+En este caso:
 
-Reglas para subtitle:
+60 / 5 = 12 escenas
 
-* Debe ser exactamente igual a narration.
+## Cada escena debe tener
 
-Reglas para tts_text:
+* scene_number
+* duration_seconds
+* visual_prompt
+* narration
+* subtitle
+* tts_text
 
-* Debe conservar el mismo significado que narration.
-* Debe estar limpio para voz TTS.
-* Evita símbolos raros, emojis o signos innecesarios.
+Cada escena debe tener:
 
-Estructura narrativa recomendada:
-Escena 1: el protagonista es transportado al otro mundo.
-Escena 2: despierta en un lugar extraño y peligroso.
-Escena 3: aparece una amenaza o criatura fantástica.
-Escena 4: descubre su poder especial.
-Escena 5: aparece un giro final que invite a continuar la historia.
+```json
+"duration_seconds": 5
+```
 
-Importante:
+## Reglas para narration
 
-* Entrega únicamente JSON válido.
-* No uses markdown.
-* No expliques nada fuera del JSON.
-* No pongas comentarios.
-* No uses texto antes ni después.
-* Genera [AQUÍ PON EL NÚMERO] historias diferentes.
+Cada narration debe:
+
+* sonar como narración de anime/isekai viral;
+* conectar con la escena anterior;
+* durar aproximadamente 4 a 5 segundos al leerse;
+* tener mínimo 75 caracteres;
+* tener máximo 135 caracteres;
+* tener mínimo 12 palabras;
+* tener máximo 20 palabras;
+* no ser una frase demasiado corta;
+* no ser una frase demasiado larga;
+* no usar puntos suspensivos;
+* evitar puntos si no son necesarios;
+* no usar frases genéricas repetidas;
+* no usar “Cada consecuencia abre la puerta a la siguiente”.
+
+Ejemplos malos:
+
+```json
+"narration": "Kael cayó del cielo."
+```
+
+```json
+"narration": "Y despertó su poder."
+```
+
+Ejemplos buenos:
+
+```json
+"narration": "Kael cayó desde un portal azul hacia un reino imposible, mientras el cielo ardía sobre él"
+```
+
+```json
+"narration": "Entonces entendió la verdad, no era fuego común, era el poder dormido de un dragón"
+```
+
+## Reglas para subtitle
+
+El campo subtitle debe ser exactamente igual a narration.
+
+## Reglas para tts_text
+
+El campo tts_text debe ser una versión limpia de narration para voz IA.
+
+Reglas:
+
+* debe conservar el mismo significado;
+* no usar puntos;
+* no usar puntos suspensivos;
+* reemplazar puntos por comas;
+* mantener tildes y ñ;
+* mantener signos ¿ ? si es pregunta;
+* no cortar palabras;
+* debe tener mínimo 75 caracteres;
+* debe tener mínimo 12 palabras;
+* debe sonar natural al leerse.
+
+Ejemplo:
+
+```json
+"narration": "Entonces entendió la verdad, no era fuego común, era el poder dormido de un dragón",
+"subtitle": "Entonces entendió la verdad, no era fuego común, era el poder dormido de un dragón",
+"tts_text": "Entonces entendió la verdad, no era fuego común, era el poder dormido de un dragón"
+```
+
+## Reglas para visual_prompt
+
+Cada visual_prompt debe estar en inglés.
+
+Debe describir claramente:
+
+* el mismo protagonista en todas las escenas;
+* apariencia consistente del protagonista;
+* entorno de fantasía;
+* acción de la escena;
+* estilo anime isekai;
+* iluminación cinematográfica;
+* movimiento de cámara;
+* atmósfera dramática.
+
+Debe incluir frases como:
+
+* anime isekai style
+* cinematic fantasy scene
+* dramatic lighting
+* smooth camera movement
+* highly detailed
+* magical atmosphere
+
+No debe incluir texto en pantalla.
+No debe incluir logos.
+No debe incluir marcas.
+No debe incluir personajes famosos.
+No debe incluir gore ni violencia gráfica.
+
+## Consistencia del protagonista
+
+Define un protagonista fijo y repítelo en todos los visual_prompt.
+
+Ejemplo:
+
+"Eiden, a young adventurer with messy black hair, amber eyes, a torn navy jacket, and a silver dragon pendant"
+
+El personaje debe mantenerse igual en las 12 escenas.
+
+## Estructura narrativa de las 12 escenas
+
+Usa esta estructura:
+
+1. Hook: el protagonista cae o despierta en otro mundo.
+2. Primer impacto: observa el reino extraño.
+3. Señal mágica: algo reacciona a su presencia.
+4. Primera amenaza: aparece una criatura o enemigo.
+5. Huida o tensión: el protagonista intenta sobrevivir.
+6. Despertar del poder: algo dentro de él se activa.
+7. Primera demostración: usa el poder sin entenderlo.
+8. Revelación: descubre que fue invocado por una razón.
+9. Escalada: el enemigo o amenaza se vuelve más grande.
+10. Decisión: el protagonista acepta avanzar.
+11. Giro oscuro: su poder despierta algo peligroso.
+12. Cliffhanger: termina con una amenaza o misterio para parte 2.
+
+## Salida requerida
+
+Dame 5 historias completas.
+
+Para cada historia entrega:
+
+1. Nombre sugerido del archivo, por ejemplo:
+   `01_isekai_corazon_del_dragon.json`
+
+2. JSON completo válido listo para copiar y guardar.
+
+Antes de responder, revisa internamente cada JSON:
+
+* que tenga topic;
+* que tenga title;
+* que tenga duration_seconds: 60;
+* que tenga scene_duration_seconds: 5;
+* que tenga exactamente 12 escenas;
+* que cada escena tenga duration_seconds: 5;
+* que cada narration tenga mínimo 75 caracteres;
+* que cada narration tenga mínimo 12 palabras;
+* que cada narration tenga máximo 135 caracteres;
+* que subtitle sea igual a narration;
+* que tts_text no tenga puntos;
+* que visual_prompt esté en inglés;
+* que el protagonista sea consistente en todas las escenas.
+
+No agregues comentarios dentro del JSON.
+No uses markdown dentro del JSON.
+No entregues explicaciones largas.

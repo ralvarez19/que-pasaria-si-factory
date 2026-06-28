@@ -208,6 +208,21 @@ def _validate_manual_payload(payload: dict) -> tuple[list[str], list[str]]:
     if not isinstance(raw_scenes, list) or not raw_scenes:
         errors.append("El guion manual debe incluir 'scenes' no vacio")
         return errors, warnings
+    try:
+        total_duration = int(payload.get("duration_seconds"))
+        scene_duration = int(payload.get("scene_duration_seconds"))
+        if scene_duration <= 0:
+            errors.append("scene_duration_seconds debe ser mayor que 0")
+        elif total_duration % scene_duration != 0:
+            errors.append("duration_seconds debe ser multiplo de scene_duration_seconds")
+        else:
+            expected_scene_count = int(total_duration / scene_duration)
+            if len(raw_scenes) != expected_scene_count:
+                errors.append(
+                    f"El guion tiene {len(raw_scenes)} escenas, pero duration_seconds/scene_duration_seconds requiere {expected_scene_count}"
+                )
+    except (TypeError, ValueError):
+        errors.append("duration_seconds y scene_duration_seconds deben ser enteros validos")
 
     for index, raw_scene in enumerate(raw_scenes, start=1):
         if not isinstance(raw_scene, dict):

@@ -121,6 +121,18 @@ def test_batch_does_not_start_twice(tmp_path: Path) -> None:
         runner.start(pending)
 
 
+@pytest.mark.asyncio
+async def test_batch_supports_files_with_different_scene_durations(tmp_path: Path) -> None:
+    runner, pending = make_runner(tmp_path)
+    write_batch_script(pending / "01_short.json", duration_seconds=20, scene_duration_seconds=4, scene_count=5)
+    write_batch_script(pending / "02_long.json", duration_seconds=60, scene_duration_seconds=5, scene_count=12)
+
+    summary = await runner.run_batch(pending)
+
+    assert summary["processed_count"] == 2
+    assert summary["failed_count"] == 0
+
+
 def make_runner(tmp_path: Path) -> tuple[ManualScriptBatchRunner, Path]:
     init_db()
     settings = Settings(data_dir=tmp_path / "data", jobs_dir=tmp_path / "data" / "jobs", log_file=tmp_path / "app.log")
@@ -130,28 +142,39 @@ def make_runner(tmp_path: Path) -> tuple[ManualScriptBatchRunner, Path]:
     return runner, pending
 
 
-def write_batch_script(path: Path, topic: str = "¿Qué pasaría si la Luna desapareciera?") -> None:
+def write_batch_script(
+    path: Path,
+    topic: str = "¿Qué pasaría si la Luna desapareciera?",
+    *,
+    duration_seconds: int = 4,
+    scene_duration_seconds: int = 4,
+    scene_count: int = 1,
+) -> None:
+    scenes = []
+    for index in range(scene_count):
+        narration = "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio"
+        scenes.append(
+            {
+                "scene_number": index + 1,
+                "duration_seconds": scene_duration_seconds,
+                "visual_prompt": f"A cinematic realistic view of Earth from space as the Moon fades away scene {index + 1}.",
+                "narration": narration,
+                "subtitle": narration,
+            }
+        )
     path.write_text(
         json.dumps(
             {
                 "topic": topic,
                 "title": topic,
-                "duration_seconds": 4,
-                "scene_duration_seconds": 4,
+                "duration_seconds": duration_seconds,
+                "scene_duration_seconds": scene_duration_seconds,
                 "language": "es",
                 "aspect_ratio": "16:9",
                 "width": 1280,
                 "height": 720,
                 "fps": 25,
-                "scenes": [
-                    {
-                        "scene_number": 1,
-                        "duration_seconds": 4,
-                        "visual_prompt": "A cinematic realistic view of Earth from space as the Moon fades away.",
-                        "narration": "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio",
-                        "subtitle": "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio",
-                    }
-                ],
+                "scenes": scenes,
             },
             ensure_ascii=False,
         ),

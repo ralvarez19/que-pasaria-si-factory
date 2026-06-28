@@ -62,6 +62,11 @@ Copia `.env.example` a `.env` con `scripts\setup.ps1` y ajusta:
 - `TELEGRAM_BOT_TOKEN=`
 - `TELEGRAM_CHAT_ID=`
 - `TELEGRAM_SEND_AS_VIDEO=true`
+- `VIDEO_DURATION_SECONDS=60`
+- `SCENE_DURATION_SECONDS=4`
+- `VIDEO_WIDTH=1280`
+- `VIDEO_HEIGHT=720`
+- `VIDEO_FPS=25`
 - `COMFYUI_BASE_URL=http://127.0.0.1:8188`
 - `COMFYUI_VIDEO_WORKFLOW=workflows/video/ltx23_t2v_api.json`
 - `COMFYUI_TTS_WORKFLOW=workflows/audio/chatterbox_tts_api.json`
@@ -218,6 +223,33 @@ Para escenas de 4 segundos, la API valida y corrige el plan antes de generar:
 - eliminación de `Cada consecuencia abre la puerta a la siguiente`;
 - `subtitle` exactamente igual a `narration`;
 - limpieza previa al TTS de saltos de línea, puntos internos, `;` y `:`.
+
+## Duración De Escenas
+
+La duración de cada escena es paramétrica. La prioridad es:
+
+1. JSON manual;
+2. body de la API;
+3. `.env`;
+4. defaults internos.
+
+Ejemplos:
+
+```powershell
+scripts\create-job.ps1 -Topic "¿Qué pasaría si la Luna desapareciera?" -DurationSeconds 60 -SceneDurationSeconds 4
+scripts\create-job.ps1 -Topic "¿Qué pasaría si la Luna desapareciera?" -DurationSeconds 60 -SceneDurationSeconds 5
+scripts\create-job.ps1 -Topic "¿Qué pasaría si la Luna desapareciera?" -DurationSeconds 60 -SceneDurationSeconds 6
+```
+
+Para JSON manual, `duration_seconds / scene_duration_seconds` debe coincidir exactamente con la cantidad de escenas.
+
+Validar clips generados:
+
+```powershell
+scripts\check-video-durations.ps1 -JobId "{job_id}"
+```
+
+En ComfyUI, el workflow actual usa `duration_node_id=320:301`, input `value`. Si otro workflow usa frame count, configura `frame_count_node_id`, `frame_count_input_name` y `frame_count_formula`.
 
 Consultar progreso:
 

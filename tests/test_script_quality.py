@@ -200,6 +200,33 @@ def test_validate_manual_missing_script_path_fails(tmp_path: Path) -> None:
     assert any("No existe" in error for error in result.errors)
 
 
+def test_validate_manual_duration_20_scene_4_requires_5_scenes(tmp_path: Path) -> None:
+    manual = write_multi_scene_manual_script(tmp_path, duration_seconds=20, scene_duration_seconds=4, scene_count=5)
+
+    result = validate_manual_script_file(manual)
+
+    assert result.ok is True
+    assert result.scene_count == 5
+
+
+def test_validate_manual_duration_60_scene_5_requires_12_scenes(tmp_path: Path) -> None:
+    manual = write_multi_scene_manual_script(tmp_path, duration_seconds=60, scene_duration_seconds=5, scene_count=12)
+
+    result = validate_manual_script_file(manual)
+
+    assert result.ok is True
+    assert result.scene_count == 12
+
+
+def test_validate_manual_fails_when_scene_count_does_not_match_duration(tmp_path: Path) -> None:
+    manual = write_multi_scene_manual_script(tmp_path, duration_seconds=60, scene_duration_seconds=5, scene_count=15)
+
+    result = validate_manual_script_file(manual)
+
+    assert result.ok is False
+    assert any("requiere 12" in error for error in result.errors)
+
+
 @pytest.mark.asyncio
 async def test_job_can_be_created_with_manual_script_path_and_copies_input(tmp_path: Path) -> None:
     init_db()
@@ -268,6 +295,41 @@ def write_manual_script(tmp_path: Path, scene_overrides: dict | None = None) -> 
                 "height": 720,
                 "fps": 25,
                 "scenes": [scene],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return manual
+
+
+def write_multi_scene_manual_script(tmp_path: Path, *, duration_seconds: int, scene_duration_seconds: int, scene_count: int) -> Path:
+    scenes = []
+    for index in range(scene_count):
+        narration = "Imagina que la Luna desaparece, y la Tierra empieza a cambiar en silencio"
+        scenes.append(
+            {
+                "scene_number": index + 1,
+                "duration_seconds": scene_duration_seconds,
+                "visual_prompt": f"A cinematic realistic documentary scene number {index + 1} with dramatic lighting.",
+                "narration": narration,
+                "subtitle": narration,
+            }
+        )
+    manual = tmp_path / "manual_multi_script.json"
+    manual.write_text(
+        __import__("json").dumps(
+            {
+                "topic": "¿Qué pasaría si la Luna desapareciera?",
+                "title": "¿Qué pasaría si la Luna desapareciera?",
+                "duration_seconds": duration_seconds,
+                "scene_duration_seconds": scene_duration_seconds,
+                "language": "es",
+                "aspect_ratio": "16:9",
+                "width": 1280,
+                "height": 720,
+                "fps": 25,
+                "scenes": scenes,
             },
             ensure_ascii=False,
         ),

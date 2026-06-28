@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -22,6 +24,7 @@ from app.services.paths import ensure_job_dirs, scene_audio_path, scene_clip_pat
 from app.services.script_quality import PROHIBITED_PHRASE, load_manual_script, normalize_manual_narration, resolve_manual_script_path, validate_and_repair_plan
 from app.services.subtitles import generate_srt
 from app.services.telegram import TelegramNotifier, TelegramSendResult
+from app.services.workflow import frame_count_value, load_workflow_bindings
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +267,17 @@ class JobWorker:
             db.commit()
             output_path = scene_clip_path(self.settings, job_id, scene.scene_number)
             try:
+                video_binding_log = self._video_binding_log(scene.duration_seconds, job.fps)
+                job_logger.info(
+                    "Escena %03d video config scene_duration_seconds=%s fps=%s duration_node_id=%s duration_input=%s duration_enviada=%s frame_count=%s",
+                    scene.scene_number,
+                    scene.duration_seconds,
+                    job.fps,
+                    video_binding_log.get("duration_node_id"),
+                    video_binding_log.get("duration_input_name"),
+                    scene.duration_seconds,
+                    video_binding_log.get("frame_count"),
+                )
                 result = await self.video_provider.generate_scene_video(
                     visual_prompt=scene.visual_prompt,
                     width=job.width,
@@ -284,7 +298,20 @@ class JobWorker:
             scene.generation_seconds = result.generation_seconds
             scene.status = SceneStatus.COMPLETED.value
             db.commit()
-            job_logger.info("Escena %03d video generado prompt_id=%s seconds=%.2f", scene.scene_number, scene.prompt_id, scene.generation_seconds)
+            probe = self._probe_video(scene.video_path)
+            if probe:
+                job_logger.info(
+                    "Escena %03d video generado prompt_id=%s seconds=%.2f real_seconds=%.3f fps=%.3f width=%s height=%s",
+                    scene.scene_number,
+                    scene.prompt_id,
+                    scene.generation_seconds,
+                    probe.get("duration_seconds", 0.0),
+                    probe.get("fps", 0.0),
+                    probe.get("width"),
+                    probe.get("height"),
+                )
+            else:
+                job_logger.info("Escena %03d video generado prompt_id=%s seconds=%.2f", scene.scene_number, scene.prompt_id, scene.generation_seconds)
 
     def _validate_persisted_script(self, db: Session, job: Job) -> None:
         if not job.scenes:
@@ -460,6 +487,57 @@ class JobWorker:
         except OSError as exc:
             return f"El video final no se puede leer o esta bloqueado: {resolved}: {exc}"
         return None
+
+    def _video_binding_log(self, duration_seconds: int, fps: int) -> dict[str, object]:
+        try:
+            bindings = load_workflow_bindings(self.settings.workflow_bindings_path)
+            video = bindings.get("video", {}) if isinstance(bindings, dict) else {}
+            frame_count = None
+            if video.get("frame_count_node_id") and video.get("frame_count_input_name"):
+                frame_count = frame_count_value(video, duration=duration_seconds, fps=fps)
+            return {
+                "duration_node_id": video.get("duration_node_id"),
+                "duration_input_name": video.get("duration_input_name"),
+                "frame_count_node_id": video.get("frame_count_node_id"),
+                "frame_count_input_name": video.get("frame_count_input_name"),
+                "frame_count": frame_count,
+            }
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    @staticmethod
+    def _probe_video(video_path: str | None) -> dict[str, float | int] | None:
+        if not video_path:
+            return None
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height,r_frame_rate,duration",
+            "-of",
+            "json",
+            str(video_path),
+        ]
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+        if completed.returncode != 0:
+            return None
+        try:
+            payload = json.loads(completed.stdout)
+            stream = payload["streams"][0]
+            rate = str(stream.get("r_frame_rate") or "0/1")
+            numerator, denominator = rate.split("/", 1)
+            fps = float(numerator) / float(denominator)
+            return {
+                "duration_seconds": float(stream.get("duration") or 0),
+                "fps": fps,
+                "width": int(stream.get("width") or 0),
+                "height": int(stream.get("height") or 0),
+            }
+        except Exception:
+            return None
 
     @staticmethod
     def _telegram_caption(job: Job) -> str:

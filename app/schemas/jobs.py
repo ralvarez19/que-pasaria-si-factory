@@ -1,31 +1,33 @@
 from datetime import datetime
-from math import ceil
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.enums import JobStatus, SceneStatus
+from app.core.config import get_settings
 
 
 class JobCreate(BaseModel):
     topic: str = Field(min_length=5, max_length=500)
-    duration_seconds: int = Field(default=60, gt=0, le=1800)
-    scene_duration_seconds: int = Field(default=4, gt=0, le=60)
-    language: str = Field(default="es", min_length=2, max_length=16)
-    aspect_ratio: str = Field(default="16:9", max_length=16)
-    width: int = Field(default=1280, ge=256, le=4096)
-    height: int = Field(default=720, ge=256, le=4096)
-    fps: int = Field(default=25, ge=1, le=120)
+    duration_seconds: int = Field(default_factory=lambda: get_settings().default_video_duration_seconds, gt=0, le=1800)
+    scene_duration_seconds: int = Field(default_factory=lambda: get_settings().scene_duration_seconds, gt=0, le=60)
+    language: str = Field(default_factory=lambda: get_settings().default_language, min_length=2, max_length=16)
+    aspect_ratio: str = Field(default_factory=lambda: get_settings().default_aspect_ratio, max_length=16)
+    width: int = Field(default_factory=lambda: get_settings().default_width, ge=256, le=4096)
+    height: int = Field(default_factory=lambda: get_settings().default_height, ge=256, le=4096)
+    fps: int = Field(default_factory=lambda: get_settings().default_fps, ge=1, le=120)
     script_path: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode="after")
     def validate_duration(self) -> "JobCreate":
         if self.duration_seconds < self.scene_duration_seconds:
             raise ValueError("duration_seconds must be greater than or equal to scene_duration_seconds")
+        if self.duration_seconds % self.scene_duration_seconds != 0:
+            raise ValueError("duration_seconds must be a multiple of scene_duration_seconds")
         return self
 
     @property
     def scene_count(self) -> int:
-        return int(ceil(self.duration_seconds / self.scene_duration_seconds))
+        return int(self.duration_seconds / self.scene_duration_seconds)
 
 
 class JobQueuedResponse(BaseModel):

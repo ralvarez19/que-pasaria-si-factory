@@ -61,17 +61,16 @@ def apply_video_bindings(
         raise WorkflowConfigurationError("config/workflow_bindings.json debe contener la seccion 'video'.")
     apply_static_overrides(result, video)
     force_text_to_video_switch(result, video)
-    duration_value = _duration_value(video, duration=duration, fps=fps)
     values = {
         "prompt": prompt,
         "width": width,
         "height": height,
-        "duration": duration_value,
         "fps": fps,
         "filename": filename_prefix,
     }
     for key, value in values.items():
         set_workflow_input(result, str(video.get(f"{key}_node_id", "")), str(video.get(f"{key}_input_name", "")), value)
+    apply_duration_and_frame_count_bindings(result, video, duration=duration, fps=fps)
     seed_bindings = video.get("seed_bindings")
     if isinstance(seed_bindings, list) and seed_bindings:
         for index, seed_binding in enumerate(seed_bindings):
@@ -157,9 +156,17 @@ def validate_video_bindings(workflow: dict[str, Any], bindings: dict[str, Any]) 
             if not isinstance(override, dict):
                 raise WorkflowConfigurationError("Cada static_override debe ser un objeto.")
             _assert_workflow_input_exists(workflow, str(override.get("node_id", "")), str(override.get("input_name", "")))
-    required = ("prompt", "width", "height", "duration", "fps", "filename")
+    required = ("prompt", "width", "height", "fps", "filename")
     for key in required:
         _assert_workflow_input_exists(workflow, str(video.get(f"{key}_node_id", "")), str(video.get(f"{key}_input_name", "")))
+    has_duration = bool(video.get("duration_node_id") and video.get("duration_input_name"))
+    has_frame_count = bool(video.get("frame_count_node_id") and video.get("frame_count_input_name"))
+    if not has_duration and not has_frame_count:
+        raise WorkflowConfigurationError("La seccion 'video' debe configurar duration_node_id o frame_count_node_id.")
+    if has_duration:
+        _assert_workflow_input_exists(workflow, str(video.get("duration_node_id", "")), str(video.get("duration_input_name", "")))
+    if has_frame_count:
+        _assert_workflow_input_exists(workflow, str(video.get("frame_count_node_id", "")), str(video.get("frame_count_input_name", "")))
     if video.get("switch_text_to_video_node_id") or video.get("switch_text_to_video_input_name"):
         _assert_workflow_input_exists(
             workflow,
@@ -199,6 +206,32 @@ def _duration_value(video_bindings: dict[str, Any], *, duration: int, fps: int) 
         include_terminal_frame = bool(video_bindings.get("duration_add_terminal_frame", False))
         return duration * fps + (1 if include_terminal_frame else 0)
     raise WorkflowConfigurationError(f"duration_unit no soportado: {unit}")
+
+
+def apply_duration_and_frame_count_bindings(workflow: dict[str, Any], video_bindings: dict[str, Any], *, duration: int, fps: int) -> None:
+    if video_bindings.get("duration_node_id") and video_bindings.get("duration_input_name"):
+        set_workflow_input(
+            workflow,
+            str(video_bindings.get("duration_node_id", "")),
+            str(video_bindings.get("duration_input_name", "")),
+            duration,
+        )
+    if video_bindings.get("frame_count_node_id") and video_bindings.get("frame_count_input_name"):
+        set_workflow_input(
+            workflow,
+            str(video_bindings.get("frame_count_node_id", "")),
+            str(video_bindings.get("frame_count_input_name", "")),
+            frame_count_value(video_bindings, duration=duration, fps=fps),
+        )
+
+
+def frame_count_value(video_bindings: dict[str, Any], *, duration: int, fps: int) -> int:
+    formula = str(video_bindings.get("frame_count_formula", "duration_seconds * fps + 1")).strip()
+    if formula in {"duration_seconds * fps + 1", "duration*fps+1"}:
+        return duration * fps + 1
+    if formula in {"duration_seconds * fps", "duration*fps"}:
+        return duration * fps
+    raise WorkflowConfigurationError(f"frame_count_formula no soportada: {formula}")
 
 
 def apply_static_overrides(workflow: dict[str, Any], video_bindings: dict[str, Any]) -> None:

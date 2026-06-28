@@ -163,11 +163,12 @@ def test_apply_video_bindings_updates_multiple_seed_inputs() -> None:
         "1": {"inputs": {"text": "old"}},
         "2": {"inputs": {"width": 1}},
         "3": {"inputs": {"height": 1}},
-        "4": {"inputs": {"length": 1}},
+        "4": {"inputs": {"duration": 1}},
         "5": {"inputs": {"fps": 1}},
         "6": {"inputs": {"noise_seed": 1}},
         "7": {"inputs": {"noise_seed": 1}},
         "8": {"inputs": {"filename_prefix": "old"}},
+        "9": {"inputs": {"frame_count": 1}},
     }
     bindings = {
         "video": {
@@ -178,9 +179,10 @@ def test_apply_video_bindings_updates_multiple_seed_inputs() -> None:
             "height_node_id": "3",
             "height_input_name": "height",
             "duration_node_id": "4",
-            "duration_input_name": "length",
-            "duration_unit": "frames",
-            "duration_add_terminal_frame": True,
+            "duration_input_name": "duration",
+            "frame_count_node_id": "9",
+            "frame_count_input_name": "frame_count",
+            "frame_count_formula": "duration_seconds * fps + 1",
             "fps_node_id": "5",
             "fps_input_name": "fps",
             "seed_node_id": "7",
@@ -206,9 +208,46 @@ def test_apply_video_bindings_updates_multiple_seed_inputs() -> None:
         filename_prefix="clip",
     )
 
-    assert updated["4"]["inputs"]["length"] == 101
+    assert updated["4"]["inputs"]["duration"] == 4
+    assert updated["9"]["inputs"]["frame_count"] == 101
     assert updated["6"]["inputs"]["noise_seed"] == 100
     assert updated["7"]["inputs"]["noise_seed"] == 101
+
+
+def test_apply_video_bindings_supports_frame_count_without_duration() -> None:
+    workflow = {
+        "1": {"inputs": {"text": "old"}},
+        "2": {"inputs": {"width": 1}},
+        "3": {"inputs": {"height": 1}},
+        "4": {"inputs": {"fps": 1}},
+        "5": {"inputs": {"seed": 1}},
+        "6": {"inputs": {"filename_prefix": "old"}},
+        "7": {"inputs": {"frames": 1}},
+    }
+    bindings = {
+        "video": {
+            "prompt_node_id": "1",
+            "prompt_input_name": "text",
+            "width_node_id": "2",
+            "width_input_name": "width",
+            "height_node_id": "3",
+            "height_input_name": "height",
+            "fps_node_id": "4",
+            "fps_input_name": "fps",
+            "seed_node_id": "5",
+            "seed_input_name": "seed",
+            "filename_node_id": "6",
+            "filename_input_name": "filename_prefix",
+            "frame_count_node_id": "7",
+            "frame_count_input_name": "frames",
+            "frame_count_formula": "duration_seconds * fps + 1",
+        }
+    }
+
+    validate_video_bindings(workflow, bindings)
+    updated = apply_video_bindings(workflow, bindings, prompt="new", width=1280, height=720, duration=5, fps=25, seed=1, filename_prefix="clip")
+
+    assert updated["7"]["inputs"]["frames"] == 126
 
 
 def test_validate_video_bindings_checks_real_nodes() -> None:
