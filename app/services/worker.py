@@ -357,8 +357,24 @@ class JobWorker:
             scene.audio_path = str(result.path)
             scene.audio_prompt_id = result.prompt_id
             scene.audio_error = None
+            scene.tts_provider_used = result.provider_used
+            scene.tts_fallback_used = result.fallback_used
+            scene.raw_audio_path = result.raw_audio_path
+            scene.raw_audio_duration_seconds = result.raw_audio_duration_seconds
+            if result.error:
+                scene.audio_error = result.error
             db.commit()
-            job_logger.info("Escena %03d audio generado prompt_id=%s seconds=%.2f", scene.scene_number, scene.audio_prompt_id, result.generation_seconds)
+            job_logger.info(
+                "Escena %03d audio generado provider=%s fallback=%s raw=%s raw_seconds=%s prompt_id=%s seconds=%.2f error=%s",
+                scene.scene_number,
+                scene.tts_provider_used,
+                scene.tts_fallback_used,
+                scene.raw_audio_path,
+                scene.raw_audio_duration_seconds,
+                scene.audio_prompt_id,
+                result.generation_seconds,
+                result.error,
+            )
 
     async def _assemble(self, db: Session, job_id: str, job_logger: logging.Logger) -> None:
         job = db.scalar(select(Job).where(Job.id == job_id).options(selectinload(Job.scenes)).execution_options(populate_existing=True))

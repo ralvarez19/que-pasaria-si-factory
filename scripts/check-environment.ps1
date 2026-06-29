@@ -51,6 +51,13 @@ if (Test-Path ".env") {
 $ttsProvider = $envValues["TTS_PROVIDER"]
 if (!$ttsProvider) { $ttsProvider = "silent" }
 Test-Ok "TTS provider" $true $ttsProvider
+$elevenEnabled = $envValues["ELEVENLABS_ENABLED"]
+if (!$elevenEnabled) { $elevenEnabled = "false" }
+$elevenKey = $envValues["ELEVENLABS_API_KEY"]
+$elevenVoice = $envValues["ELEVENLABS_VOICE_ID"]
+Test-Ok "ElevenLabs enabled" $true $elevenEnabled
+Test-Ok "ElevenLabs API key" (![string]::IsNullOrWhiteSpace($elevenKey)) ($(if ($elevenKey) { "Configurada (oculta)" } else { "No configurada" }))
+Test-Ok "ElevenLabs voice id" (![string]::IsNullOrWhiteSpace($elevenVoice)) ($(if ($elevenVoice) { "Configurado" } else { "No configurado" }))
 
 $telegramEnabled = $envValues["TELEGRAM_ENABLED"]
 if (!$telegramEnabled) { $telegramEnabled = "false" }
@@ -97,4 +104,6 @@ if ($ttsProvider -eq "comfyui") {
             Test-Ok "Workflow TTS texto/audio" $false "No se pudo inspeccionar el JSON"
         }
     }
+} elseif ($ttsProvider -in @("auto", "elevenlabs")) {
+    Test-Ok "Workflow TTS fallback ComfyUI" $ttsWorkflowExists $ttsWorkflow
 }

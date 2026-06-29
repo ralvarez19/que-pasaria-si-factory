@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     tts_audio_format: str = "wav"
     tts_scene_mode: str = "per_scene"
 
+    elevenlabs_enabled: bool = False
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = ""
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    elevenlabs_output_format: str = "mp3_44100_128"
+    elevenlabs_stability: float = 0.45
+    elevenlabs_similarity_boost: float = 0.75
+    elevenlabs_style: float = 0.25
+    elevenlabs_use_speaker_boost: bool = True
+    elevenlabs_timeout_seconds: float = 120.0
+    elevenlabs_fallback_to_comfyui: bool = True
+
     telegram_enabled: bool = False
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

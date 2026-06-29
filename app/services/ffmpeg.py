@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import json
 from pathlib import Path
 
 from app.core.config import Settings
@@ -112,6 +113,8 @@ class FFmpegAssembler:
                 "aac",
                 str(output_path),
             ])
+            scene.normalized_audio_path = str(output_path)
+            scene.normalized_audio_duration_seconds = self._probe_duration(output_path)
             normalized.append(output_path)
         return normalized
 
@@ -150,3 +153,24 @@ class FFmpegAssembler:
     @staticmethod
     def _filter_path(path: Path) -> str:
         return path.resolve().as_posix().replace(":", "\\:").replace("'", "\\'")
+
+    @staticmethod
+    def _probe_duration(path: Path) -> float | None:
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(path),
+        ]
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+        if completed.returncode != 0:
+            return None
+        try:
+            payload = json.loads(completed.stdout)
+            return float(payload["format"]["duration"])
+        except Exception:
+            return None

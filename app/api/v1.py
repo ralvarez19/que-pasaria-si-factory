@@ -27,6 +27,7 @@ from app.services.paths import write_job_snapshot
 from app.services.outputs import latest_video_path
 from app.services.script_quality import validate_manual_script_file
 from app.services.worker import JobWorker
+from app.providers.tts import get_tts_provider_for_name, probe_audio_duration
 
 router = APIRouter()
 
@@ -97,11 +98,15 @@ def get_manual_scripts_batch_status(batch_runner=Depends(get_manual_batch_runner
 
 @router.post("/api/v1/tts/test", response_model=TTSTestResponse)
 async def test_tts(request_body: TTSTestRequest, worker: JobWorker = Depends(get_worker)) -> TTSTestResponse:
-    output_dir = worker.settings.data_dir / "tts_tests"
+    output_dir = worker.settings.data_dir / ("temp" if request_body.provider == "elevenlabs" else "tts_tests")
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"tts_test.{worker.settings.tts_audio_format.strip().lstrip('.') or 'wav'}"
+    if request_body.provider == "elevenlabs":
+        output_path = output_dir / "elevenlabs_test.mp3"
+    else:
+        output_path = output_dir / f"tts_test.{worker.settings.tts_audio_format.strip().lstrip('.') or 'wav'}"
+    provider = get_tts_provider_for_name(worker.settings, request_body.provider)
     try:
-        result = await worker.tts_provider.generate_scene_audio(
+        result = await provider.generate_scene_audio(
             request_body.text,
             worker.settings.scene_duration_seconds,
             output_path,
@@ -109,7 +114,14 @@ async def test_tts(request_body: TTSTestRequest, worker: JobWorker = Depends(get
         )
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
-    return TTSTestResponse(audio_path=str(result.path), prompt_id=result.prompt_id)
+    return TTSTestResponse(
+        audio_path=str(result.path),
+        prompt_id=result.prompt_id,
+        provider_used=result.provider_used,
+        fallback_used=result.fallback_used,
+        duration_seconds=result.raw_audio_duration_seconds or probe_audio_duration(result.path),
+        error=result.error,
+    )
 
 
 @router.get("/api/v1/jobs", response_model=JobListResponse)

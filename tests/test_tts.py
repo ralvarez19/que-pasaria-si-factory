@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import Settings
-from app.providers.tts import ComfyUITTSProvider, SilentTTSProvider, clean_narration_for_tts, sanitize_tts_text
+from app.providers.tts import AutoTTSProvider, ComfyUITTSProvider, GeneratedAudioResult, SilentTTSProvider, clean_narration_for_tts, sanitize_tts_text
 from app.services.comfyui import ComfyUIClient, ComfyUIError
 from app.services.workflow import WorkflowConfigurationError
 
@@ -24,6 +24,34 @@ class FakeComfyTTSClient:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"fake wav")
         return destination
+
+
+class FakeElevenResponse:
+    def __init__(self, status_code: int = 200, content: bytes = b"mp3", text: str = ""):
+        self.status_code = status_code
+        self.content = content
+        self.text = text
+
+
+class FakeElevenClient:
+    response = FakeElevenResponse()
+    calls: list[dict] = []
+    raises: Exception | None = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+    async def post(self, *args, **kwargs):
+        self.calls.append({"args": args, "kwargs": kwargs})
+        if self.raises:
+            raise self.raises
+        return self.response
 
 
 @pytest.mark.asyncio
@@ -161,3 +189,96 @@ def test_clean_narration_for_tts_compacts_ellipsis_and_commas() -> None:
     cleaned = clean_narration_for_tts(text, max_chars=None)
 
     assert cleaned == "La Luna desaparece, luego, todo cambia, lentamente, sin ruido"
+
+
+@pytest.mark.asyncio
+async def test_auto_tts_without_api_key_uses_comfyui(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    async def fake_comfy(self, text, duration_seconds, output_path, filename_prefix=None):
+        output_path.write_bytes(b"audio")
+        return GeneratedAudioResult(output_path, "comfy", provider_used="comfyui")
+
+    monkeypatch.setattr("app.providers.tts.ComfyUITTSProvider.generate_scene_audio", fake_comfy)
+    provider = AutoTTSProvider(Settings(tts_provider="auto", elevenlabs_enabled=True, elevenlabs_api_key="", elevenlabs_voice_id="voice"))
+
+    result = await provider.generate_scene_audio("hola", 4, tmp_path / "scene.wav")
+
+    assert result.provider_used == "comfyui"
+
+
+@pytest.mark.asyncio
+async def test_auto_tts_with_api_key_uses_elevenlabs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    FakeElevenClient.response = FakeElevenResponse(200, b"mp3")
+    FakeElevenClient.calls = []
+    FakeElevenClient.raises = None
+    monkeypatch.setattr("app.services.tts.elevenlabs_tts_provider.httpx.AsyncClient", FakeElevenClient)
+    provider = AutoTTSProvider(
+        Settings(tts_provider="auto", elevenlabs_enabled=True, elevenlabs_api_key="secret-key", elevenlabs_voice_id="voice")
+    )
+
+    result = await provider.generate_scene_audio("hola", 4, tmp_path / "scene.wav")
+
+    assert result.provider_used == "elevenlabs"
+    assert result.path.suffix == ".mp3"
+    assert FakeElevenClient.calls
+    assert "secret-key" in FakeElevenClient.calls[0]["kwargs"]["headers"]["xi-api-key"]
+
+
+@pytest.mark.asyncio
+async def test_elevenlabs_401_falls_back_to_comfyui(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    await assert_elevenlabs_error_falls_back(monkeypatch, tmp_path, FakeElevenResponse(401, b"", "unauthorized"))
+
+
+@pytest.mark.asyncio
+async def test_elevenlabs_429_falls_back_to_comfyui(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    await assert_elevenlabs_error_falls_back(monkeypatch, tmp_path, FakeElevenResponse(429, b"", "quota"))
+
+
+@pytest.mark.asyncio
+async def test_elevenlabs_timeout_falls_back_to_comfyui(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import httpx
+
+    FakeElevenClient.response = FakeElevenResponse()
+    FakeElevenClient.calls = []
+    FakeElevenClient.raises = httpx.TimeoutException("timeout")
+    monkeypatch.setattr("app.services.tts.elevenlabs_tts_provider.httpx.AsyncClient", FakeElevenClient)
+
+    async def fake_comfy(self, text, duration_seconds, output_path, filename_prefix=None):
+        output_path.write_bytes(b"audio")
+        return GeneratedAudioResult(output_path, "comfy", provider_used="comfyui")
+
+    monkeypatch.setattr("app.providers.tts.ComfyUITTSProvider.generate_scene_audio", fake_comfy)
+    provider = AutoTTSProvider(Settings(tts_provider="auto", elevenlabs_enabled=True, elevenlabs_api_key="secret-key", elevenlabs_voice_id="voice"))
+
+    result = await provider.generate_scene_audio("hola", 4, tmp_path / "scene.wav")
+
+    assert result.provider_used == "comfyui"
+    assert result.fallback_used is True
+    assert "secret-key" not in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_elevenlabs_without_token_fails_when_fallback_disabled(tmp_path: Path) -> None:
+    provider = AutoTTSProvider(Settings(tts_provider="elevenlabs", elevenlabs_enabled=True, elevenlabs_api_key="", elevenlabs_voice_id="voice", elevenlabs_fallback_to_comfyui=False))
+
+    with pytest.raises(Exception, match="ELEVENLABS_API_KEY"):
+        await provider.generate_scene_audio("hola", 4, tmp_path / "scene.wav")
+
+
+async def assert_elevenlabs_error_falls_back(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, response: FakeElevenResponse) -> None:
+    FakeElevenClient.response = response
+    FakeElevenClient.calls = []
+    FakeElevenClient.raises = None
+    monkeypatch.setattr("app.services.tts.elevenlabs_tts_provider.httpx.AsyncClient", FakeElevenClient)
+
+    async def fake_comfy(self, text, duration_seconds, output_path, filename_prefix=None):
+        output_path.write_bytes(b"audio")
+        return GeneratedAudioResult(output_path, "comfy", provider_used="comfyui")
+
+    monkeypatch.setattr("app.providers.tts.ComfyUITTSProvider.generate_scene_audio", fake_comfy)
+    provider = AutoTTSProvider(Settings(tts_provider="auto", elevenlabs_enabled=True, elevenlabs_api_key="secret-key", elevenlabs_voice_id="voice"))
+
+    result = await provider.generate_scene_audio("hola", 4, tmp_path / "scene.wav")
+
+    assert result.provider_used == "comfyui"
+    assert result.fallback_used is True
+    assert "secret-key" not in (result.error or "")

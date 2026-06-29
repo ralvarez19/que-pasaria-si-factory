@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from app.main import app
 from app.models.job import Job
+from app.providers.tts import GeneratedAudioResult
 
 
 def test_health_endpoint() -> None:
@@ -74,6 +75,24 @@ def test_jobs_from_script_endpoint_uses_manual_script_without_generation(tmp_pat
 
     assert response.status_code == 202
     assert response.json()["job_id"] == "manual-endpoint-job"
+
+
+def test_tts_test_endpoint_returns_provider_used(monkeypatch, tmp_path: Path) -> None:
+    class FakeProvider:
+        async def generate_scene_audio(self, text, duration_seconds, output_path, filename_prefix=None):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"audio")
+            return GeneratedAudioResult(output_path, None, provider_used="elevenlabs", fallback_used=False, raw_audio_duration_seconds=1.2)
+
+    monkeypatch.setattr("app.api.v1.get_tts_provider_for_name", lambda settings, provider: FakeProvider())
+    with TestClient(app) as client:
+        response = client.post("/api/v1/tts/test", json={"text": "Esta es una prueba", "provider": "auto"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider_used"] == "elevenlabs"
+    assert payload["fallback_used"] is False
+    assert payload["duration_seconds"] == 1.2
 
 
 def write_endpoint_manual_script(tmp_path: Path) -> Path:

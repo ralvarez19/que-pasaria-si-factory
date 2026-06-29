@@ -65,6 +65,18 @@ def _ensure_sqlite_scene_columns() -> None:
         statements.append("ALTER TABLE scenes ADD COLUMN audio_error TEXT")
     if "tts_text" not in existing:
         statements.append("ALTER TABLE scenes ADD COLUMN tts_text TEXT")
+    if "tts_provider_used" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN tts_provider_used VARCHAR(40)")
+    if "tts_fallback_used" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN tts_fallback_used INTEGER")
+    if "raw_audio_path" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN raw_audio_path TEXT")
+    if "normalized_audio_path" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN normalized_audio_path TEXT")
+    if "raw_audio_duration_seconds" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN raw_audio_duration_seconds FLOAT")
+    if "normalized_audio_duration_seconds" not in existing:
+        statements.append("ALTER TABLE scenes ADD COLUMN normalized_audio_duration_seconds FLOAT")
     if not statements:
         return
     with engine.begin() as connection:

@@ -19,6 +19,7 @@ Tema -> Planner -> escenas -> VideoProvider -> TTSProvider -> SRT -> FFmpeg -> `
 - `ComfyUIVideoProvider`: usa `POST /prompt` e `/history/{prompt_id}`.
 - `SilentTTSProvider`: crea audio silencioso para validar el pipeline.
 - `ComfyUITTSProvider`: genera voz local por escena con un workflow API de ComfyUI.
+- `ElevenLabsTTSProvider`: genera voz via API de ElevenLabs cuando `TTS_PROVIDER=auto` o `elevenlabs`.
 - `TelegramNotifier`: envía `final.mp4` por Telegram sin fallar el job si Telegram responde con error.
 - SQLite persiste jobs y escenas.
 - Un worker asyncio procesa una escena de video a la vez.
@@ -56,8 +57,13 @@ Copia `.env.example` a `.env` con `scripts\setup.ps1` y ajusta:
 - `PLANNER_PROVIDER=mock` u `ollama`
 - `VIDEO_PROVIDER=placeholder` o `comfyui`
 - `TTS_PROVIDER=silent` o `comfyui`
+- `TTS_PROVIDER=auto` para intentar ElevenLabs y caer a ComfyUI
 - `TTS_AUDIO_FORMAT=flac`
 - `TTS_SCENE_MODE=per_scene`
+- `ELEVENLABS_ENABLED=false`
+- `ELEVENLABS_API_KEY=`
+- `ELEVENLABS_VOICE_ID=`
+- `ELEVENLABS_FALLBACK_TO_COMFYUI=true`
 - `TELEGRAM_ENABLED=false`
 - `TELEGRAM_BOT_TOKEN=`
 - `TELEGRAM_CHAT_ID=`
@@ -109,6 +115,27 @@ Prueba una narración corta con la API activa:
 ```powershell
 scripts\test-tts.ps1 -Text "¿Qué pasaría si la Luna desapareciera de repente?"
 ```
+
+## ElevenLabs TTS
+
+Para usar ElevenLabs temporalmente con fallback a ComfyUI:
+
+```env
+TTS_PROVIDER=auto
+ELEVENLABS_ENABLED=true
+ELEVENLABS_API_KEY=tu_api_key
+ELEVENLABS_VOICE_ID=tu_voice_id
+ELEVENLABS_FALLBACK_TO_COMFYUI=true
+```
+
+Prueba:
+
+```powershell
+scripts\test-elevenlabs-tts.ps1 -Text "Esta es una prueba de voz con ElevenLabs"
+scripts\test-tts.ps1 -Text "Esta es una prueba de voz" -Provider auto
+```
+
+Si ElevenLabs agota tokens, devuelve 429, falla autenticacion o timeout, el job intenta ComfyUI si el fallback esta activo. Guia completa: `docs/elevenlabs.md`.
 
 ## Telegram
 

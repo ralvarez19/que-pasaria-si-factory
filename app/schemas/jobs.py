@@ -88,6 +88,12 @@ class SceneResponse(BaseModel):
     seed: int | None = None
     video_path: str | None = None
     audio_path: str | None = None
+    tts_provider_used: str | None = None
+    tts_fallback_used: bool | None = None
+    raw_audio_path: str | None = None
+    normalized_audio_path: str | None = None
+    raw_audio_duration_seconds: float | None = None
+    normalized_audio_duration_seconds: float | None = None
     error_message: str | None = None
     audio_error: str | None = None
     generation_seconds: float | None = None
@@ -136,11 +142,16 @@ class HealthResponse(BaseModel):
 
 class TTSTestRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
+    provider: str = Field(default="auto", pattern="^(auto|elevenlabs|comfyui|silent)$")
 
 
 class TTSTestResponse(BaseModel):
     audio_path: str
     prompt_id: str | None = None
+    provider_used: str | None = None
+    fallback_used: bool = False
+    duration_seconds: float | None = None
+    error: str | None = None
 
 
 class TelegramSendResponse(BaseModel):
